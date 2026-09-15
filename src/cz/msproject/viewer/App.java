@@ -30,6 +30,8 @@ public final class App {
             SelfTest.uiTest(args);
             return;
         }
+        // až po testech: v testech má chyba shodit proces, ne zobrazit dialog
+        ErrorLog.install();
         Path file = args.length > 0 ? Path.of(args[0]) : null;
         SwingUtilities.invokeLater(() -> {
             MainWindow w = new MainWindow();

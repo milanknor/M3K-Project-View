@@ -76,7 +76,6 @@ public final class MainWindow extends JFrame {
     static final String APP_NAME_HTML = "<b>M<span style='color:#FF790A'>3</span>K</b> Project View";
     public static final String VERSION = "0.2.0";
     public static final String AUTHOR = "Milan Knor";
-    private static final int RECENT_MAX = 8;
     /** Otevřená okna (každé = jeden soubor); po zavření posledního se aplikace ukončí. */
     static final List<MainWindow> WINDOWS = new ArrayList<>();
     /** Během přestavby oken (změna vzhledu) se po zavření posledního okna neukončuje. */
@@ -117,7 +116,9 @@ public final class MainWindow extends JFrame {
     final JScrollPane tableScroll;
     final JSplitPane mainSplit;
     final JSplitPane verticalSplit;
-    private final Preferences prefs = Preferences.userNodeForPackage(MainWindow.class);
+    final Preferences prefs = Preferences.userNodeForPackage(MainWindow.class);
+    final RecentFiles recent = new RecentFiles(prefs);
+    final Exports exports = new Exports(this);
 
     ProjectFile project;
     Path currentPath;
@@ -207,11 +208,11 @@ public final class MainWindow extends JFrame {
                 }
             }
         });
-        bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), "toggle", () -> selectedRow().ifPresent(this::toggle));
-        bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_ADD, 0), "expand", () -> selectedRow().ifPresent(r -> setCollapsed(r, false)));
-        bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, 0), "expand2", () -> selectedRow().ifPresent(r -> setCollapsed(r, false)));
-        bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, 0), "collapse", () -> selectedRow().ifPresent(r -> setCollapsed(r, true)));
-        bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, 0), "collapse2", () -> selectedRow().ifPresent(r -> setCollapsed(r, true)));
+        Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), "toggle", () -> selectedRow().ifPresent(this::toggle));
+        Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_ADD, 0), "expand", () -> selectedRow().ifPresent(r -> setCollapsed(r, false)));
+        Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, 0), "expand2", () -> selectedRow().ifPresent(r -> setCollapsed(r, false)));
+        Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, 0), "collapse", () -> selectedRow().ifPresent(r -> setCollapsed(r, true)));
+        Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, 0), "collapse2", () -> selectedRow().ifPresent(r -> setCollapsed(r, true)));
 
         tableScroll = new JScrollPane(table);
         tableScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_ALWAYS);
@@ -251,7 +252,7 @@ public final class MainWindow extends JFrame {
         resources.setNavigator(this::goToTask);
         usage.setNavigator(this::goToTask);
         timeline.setNavigator(this::goToTask);
-        timeline.setExporter(img -> savePng(img, "-casova-osa", Str.t("Uložit časovou osu jako PNG")));
+        timeline.setExporter(img -> exports.savePng(img, "-casova-osa", Str.t("Uložit časovou osu jako PNG")));
 
         tabs.setFont(Theme.BASE);
         tabs.addTab(Str.t("Ganttův diagram"), verticalSplit);
@@ -297,25 +298,25 @@ public final class MainWindow extends JFrame {
         JMenuBar bar = new JMenuBar();
         JMenu file = new JMenu(Str.t("Soubor"));
         file.setMnemonic('S');
-        file.add(item(Str.t("Otevřít…"), KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK), this::chooseFile));
-        file.add(item(Str.t("Otevřít v novém okně…"), KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
+        file.add(Ui.item(Str.t("Otevřít…"), KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK), this::chooseFile));
+        file.add(Ui.item(Str.t("Otevřít v novém okně…"), KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
             MainWindow w = newWindow();
             w.chooseFile();
         }));
-        file.add(item(Str.t("Nové okno"), KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK), this::newWindow));
+        file.add(Ui.item(Str.t("Nové okno"), KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK), this::newWindow));
         file.add(recentMenu);
-        file.add(item(Str.t("Znovu načíst"), KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), this::reload));
-        file.add(item(Str.t("Zavřít okno"), KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_DOWN_MASK), () -> {
+        file.add(Ui.item(Str.t("Znovu načíst"), KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), this::reload));
+        file.add(Ui.item(Str.t("Zavřít okno"), KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_DOWN_MASK), () -> {
             saveWindowState();
             dispose();
         }));
         file.addSeparator();
-        file.add(item(Str.t("Exportovat zobrazené úkoly do CSV…"), KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK), this::exportCsv));
-        file.add(item(Str.t("Uložit Ganttův diagram jako PNG…"), KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::exportPng));
-        file.add(item(Str.t("Uložit jako PDF…"), KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::exportPdf));
-        file.add(item(Str.t("Tisk…"), KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK), this::printChart));
+        file.add(Ui.item(Str.t("Exportovat zobrazené úkoly do CSV…"), KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK), exports::exportCsv));
+        file.add(Ui.item(Str.t("Uložit Ganttův diagram jako PNG…"), KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), exports::exportPng));
+        file.add(Ui.item(Str.t("Uložit jako PDF…"), KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), exports::exportPdf));
+        file.add(Ui.item(Str.t("Tisk…"), KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK), exports::printChart));
         file.addSeparator();
-        file.add(item(Str.t("Konec"), KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK), () -> {
+        file.add(Ui.item(Str.t("Konec"), KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK), () -> {
             saveWindowState();
             for (MainWindow w : new ArrayList<>(WINDOWS)) {
                 w.dispose();
@@ -326,20 +327,20 @@ public final class MainWindow extends JFrame {
 
         JMenu view = new JMenu(Str.t("Zobrazit"));
         view.setMnemonic('Z');
-        view.add(item(Str.t("Hledat"), KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK), () -> {
+        view.add(Ui.item(Str.t("Hledat"), KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK), () -> {
             tabs.setSelectedIndex(0);
             search.requestFocusInWindow();
             search.selectAll();
         }));
-        view.add(item(Str.t("Rozbalit vše"), KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
+        view.add(Ui.item(Str.t("Rozbalit vše"), KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
             tree.expandAll();
             refresh();
         }));
-        view.add(item(Str.t("Sbalit vše"), KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
+        view.add(Ui.item(Str.t("Sbalit vše"), KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
             tree.collapseAll();
             refresh();
         }));
-        view.add(item(Str.t("Rozšířený filtr…"), KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::showFilterDialog));
+        view.add(Ui.item(Str.t("Rozšířený filtr…"), KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::showFilterDialog));
         JMenu savedFilters = new JMenu(Str.t("Uložené filtry"));
         savedFilters.addMenuListener(new javax.swing.event.MenuListener() {
             @Override
@@ -352,10 +353,10 @@ public final class MainWindow extends JFrame {
                     savedFilters.add(none);
                 }
                 for (TaskFilter f : list) {
-                    savedFilters.add(item(f.name() + "   —   " + f.describe(), null, () -> applyExtraFilter(f)));
+                    savedFilters.add(Ui.item(f.name() + "   —   " + f.describe(), null, () -> applyExtraFilter(f)));
                 }
                 savedFilters.addSeparator();
-                savedFilters.add(item(Str.t("Zrušit rozšířený filtr"), null, () -> applyExtraFilter(null)));
+                savedFilters.add(Ui.item(Str.t("Zrušit rozšířený filtr"), null, () -> applyExtraFilter(null)));
             }
 
             @Override
@@ -367,25 +368,25 @@ public final class MainWindow extends JFrame {
             }
         });
         view.add(savedFilters);
-        view.add(item(Str.t("Sloupce tabulky…"), null, () -> showColumnChooser(0, Theme.HEADER)));
-        view.add(item(Str.t("Zrušit řazení"), null, () -> {
+        view.add(Ui.item(Str.t("Sloupce tabulky…"), null, () -> showColumnChooser(0, Theme.HEADER)));
+        view.add(Ui.item(Str.t("Zrušit řazení"), null, () -> {
             sortColumn = null;
             tree.setOrder(null);
             updateHeaderTitles();
             refresh();
         }));
         view.addSeparator();
-        view.add(item(Str.t("Přiblížit"), KeyStroke.getKeyStroke(KeyEvent.VK_ADD, InputEvent.CTRL_DOWN_MASK), () -> gantt.zoomBy(1.25, -1)));
-        view.add(item(Str.t("Oddálit"), KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, InputEvent.CTRL_DOWN_MASK), () -> gantt.zoomBy(0.8, -1)));
-        view.add(item(Str.t("Celý projekt"), KeyStroke.getKeyStroke(KeyEvent.VK_0, InputEvent.CTRL_DOWN_MASK), () -> zoomBox.setSelectedItem(GanttPanel.Zoom.FIT)));
+        view.add(Ui.item(Str.t("Přiblížit"), KeyStroke.getKeyStroke(KeyEvent.VK_ADD, InputEvent.CTRL_DOWN_MASK), () -> gantt.zoomBy(1.25, -1)));
+        view.add(Ui.item(Str.t("Oddálit"), KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, InputEvent.CTRL_DOWN_MASK), () -> gantt.zoomBy(0.8, -1)));
+        view.add(Ui.item(Str.t("Celý projekt"), KeyStroke.getKeyStroke(KeyEvent.VK_0, InputEvent.CTRL_DOWN_MASK), () -> zoomBox.setSelectedItem(GanttPanel.Zoom.FIT)));
         view.addSeparator();
-        view.add(item(Str.t("Přejít na dnešek"), KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.CTRL_DOWN_MASK), () -> gantt.scrollToDate(java.time.LocalDate.now())));
-        view.add(item(Str.t("Přejít na vybraný úkol"), KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_DOWN_MASK), () -> gantt.scrollToRow(table.getSelectedRow())));
+        view.add(Ui.item(Str.t("Přejít na dnešek"), KeyStroke.getKeyStroke(KeyEvent.VK_T, InputEvent.CTRL_DOWN_MASK), () -> gantt.scrollToDate(java.time.LocalDate.now())));
+        view.add(Ui.item(Str.t("Přejít na vybraný úkol"), KeyStroke.getKeyStroke(KeyEvent.VK_G, InputEvent.CTRL_DOWN_MASK), () -> gantt.scrollToRow(table.getSelectedRow())));
         view.addSeparator();
-        view.add(check(Str.t("Zobrazit vazby"), linksBox));
-        view.add(check(Str.t("Zobrazit základní plán"), baselineBox));
-        view.add(check(Str.t("Zobrazit popisky zdrojů"), labelsBox));
-        view.add(check(Str.t("Zobrazit celkovou rezervu"), slackBox));
+        view.add(Ui.check(Str.t("Zobrazit vazby"), linksBox));
+        view.add(Ui.check(Str.t("Zobrazit základní plán"), baselineBox));
+        view.add(Ui.check(Str.t("Zobrazit popisky zdrojů"), labelsBox));
+        view.add(Ui.check(Str.t("Zobrazit celkovou rezervu"), slackBox));
         view.addSeparator();
         JMenu appearance = new JMenu(Str.t("Vzhled"));
         javax.swing.ButtonGroup modeGroup = new javax.swing.ButtonGroup();
@@ -409,9 +410,9 @@ public final class MainWindow extends JFrame {
             appearance.add(mi);
         }
         appearance.addSeparator();
-        appearance.add(item(Str.t("Zvětšit písmo"), KeyStroke.getKeyStroke(KeyEvent.VK_ADD, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
+        appearance.add(Ui.item(Str.t("Zvětšit písmo"), KeyStroke.getKeyStroke(KeyEvent.VK_ADD, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
                 () -> App.applyAppearance(Theme.DARK, Math.min(2f, Theme.SCALE + 0.1f))));
-        appearance.add(item(Str.t("Zmenšit písmo"), KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
+        appearance.add(Ui.item(Str.t("Zmenšit písmo"), KeyStroke.getKeyStroke(KeyEvent.VK_SUBTRACT, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK),
                 () -> App.applyAppearance(Theme.DARK, Math.max(0.7f, Theme.SCALE - 0.1f))));
         view.add(appearance);
         JMenu language = new JMenu(Str.t("Jazyk"));
@@ -442,7 +443,7 @@ public final class MainWindow extends JFrame {
                     windowMenu.add(mi);
                 }
                 windowMenu.addSeparator();
-                windowMenu.add(item(Str.t("Nové okno"), null, MainWindow.this::newWindow));
+                windowMenu.add(Ui.item(Str.t("Nové okno"), null, MainWindow.this::newWindow));
             }
 
             @Override
@@ -457,27 +458,11 @@ public final class MainWindow extends JFrame {
 
         JMenu help = new JMenu(Str.t("Nápověda"));
         help.setMnemonic('N');
-        help.add(item(Str.t("Ovládání"), KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0), this::showHelp));
-        help.add(item(Str.t("Licence…"), null, () -> new LicenseDialog(this).setVisible(true)));
-        help.add(item(Str.t("O aplikaci"), null, this::showAbout));
+        help.add(Ui.item(Str.t("Ovládání"), KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0), () -> HelpDialogs.showHelp(this)));
+        help.add(Ui.item(Str.t("Licence…"), null, () -> new LicenseDialog(this).setVisible(true)));
+        help.add(Ui.item(Str.t("O aplikaci"), null, () -> HelpDialogs.showAbout(this)));
         bar.add(help);
         return bar;
-    }
-
-    private JCheckBoxMenuItem check(String label, JCheckBox box) {
-        JCheckBoxMenuItem mi = new JCheckBoxMenuItem(label, box.isSelected());
-        mi.addActionListener(e -> box.setSelected(mi.isSelected()));
-        box.addActionListener(e -> mi.setSelected(box.isSelected()));
-        return mi;
-    }
-
-    private static JMenuItem item(String label, KeyStroke key, Runnable action) {
-        JMenuItem mi = new JMenuItem(label);
-        if (key != null) {
-            mi.setAccelerator(key);
-        }
-        mi.addActionListener(e -> action.run());
-        return mi;
     }
 
     private JComponent buildToolbar() {
@@ -510,7 +495,7 @@ public final class MainWindow extends JFrame {
         open.addActionListener(e -> chooseFile());
         bar.add(open);
         bar.addSeparator();
-        bar.add(label(Str.t("Hledat:")));
+        bar.add(Ui.label(Str.t("Hledat:")));
         search.setFont(Theme.BASE);
         search.setMinimumSize(new Dimension(140, search.getPreferredSize().height));
         search.setMaximumSize(new Dimension(260, Integer.MAX_VALUE));
@@ -531,10 +516,10 @@ public final class MainWindow extends JFrame {
                 onSearch();
             }
         });
-        bindKey(search, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear", () -> search.setText(""));
+        Ui.bindKey(search, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clear", () -> search.setText(""));
         bar.add(search);
         bar.add(Box.createHorizontalStrut(8));
-        bar.add(label(Str.t("Filtr:")));
+        bar.add(Ui.label(Str.t("Filtr:")));
         filterBox.setFont(Theme.BASE);
         filterBox.addActionListener(e -> {
             if (!suppressEvents) {
@@ -548,7 +533,7 @@ public final class MainWindow extends JFrame {
         extraFilterButton.addActionListener(e -> showFilterDialog());
         bar.add(extraFilterButton);
         bar.add(Box.createHorizontalStrut(8));
-        bar.add(label(Str.t("Osnova:")));
+        bar.add(Ui.label(Str.t("Osnova:")));
         levelBox.setFont(Theme.BASE);
         levelBox.setToolTipText("Rozbalí osnovu do zvolené úrovně");
         levelBox.addActionListener(e -> {
@@ -565,7 +550,7 @@ public final class MainWindow extends JFrame {
         });
         bar.add(levelBox);
         bar.addSeparator();
-        bar.add(label(Str.t("Měřítko:")));
+        bar.add(Ui.label(Str.t("Měřítko:")));
         zoomBox.setFont(Theme.BASE);
         zoomBox.setSelectedItem(GanttPanel.Zoom.FIT);
         zoomBox.addActionListener(e -> {
@@ -617,13 +602,6 @@ public final class MainWindow extends JFrame {
         return top;
     }
 
-    private static JLabel label(String text) {
-        JLabel l = new JLabel(text + " ");
-        l.setFont(Theme.BASE);
-        l.setForeground(Theme.MUTED);
-        return l;
-    }
-
     private JComponent buildStatusBar() {
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.setBorder(BorderFactory.createCompoundBorder(
@@ -636,18 +614,6 @@ public final class MainWindow extends JFrame {
         bottom.add(status, BorderLayout.CENTER);
         bottom.add(stats, BorderLayout.EAST);
         return bottom;
-    }
-
-    private static void bindKey(JComponent c, KeyStroke key, String name, Runnable action) {
-        c.getInputMap(JComponent.WHEN_FOCUSED).put(key, name);
-        c.getActionMap().put(name, new AbstractAction() {
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                action.run();
-            }
-        });
     }
 
     private void installDropHandler(JComponent... targets) {
@@ -668,7 +634,11 @@ public final class MainWindow extends JFrame {
                 try {
                     List<File> files = (List<File>) s.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
                     if (!files.isEmpty()) {
+                        // první soubor do tohoto okna, další do nových oken (max. 8 najednou)
                         open(files.get(0).toPath());
+                        for (int i = 1; i < Math.min(files.size(), 8); i++) {
+                            newWindow().open(files.get(i).toPath());
+                        }
                         return true;
                     }
                 } catch (Exception ex) {
@@ -787,14 +757,14 @@ public final class MainWindow extends JFrame {
             menu.add(none);
         }
         menu.addSeparator();
-        menu.add(item(Str.t("Výchozí sloupce"), null, () -> {
+        menu.add(Ui.item(Str.t("Výchozí sloupce"), null, () -> {
             List<String[]> def = new ArrayList<>();
             for (String k : Columns.DEFAULT_KEYS) {
                 def.add(new String[]{k, ""});
             }
             applyColumns(def);
         }));
-        menu.add(item(Str.t("Přizpůsobit šířky obsahu"), null, this::autoSizeColumns));
+        menu.add(Ui.item(Str.t("Přizpůsobit šířky obsahu"), null, this::autoSizeColumns));
         menu.show(table.getTableHeader(), x, y);
     }
 
@@ -1082,10 +1052,6 @@ public final class MainWindow extends JFrame {
         }
     }
 
-    private String exportDir() {
-        return prefs.get("lastExportDir", currentPath == null || currentPath.getParent() == null ? System.getProperty("user.home") : currentPath.getParent().toString());
-    }
-
     void reload() {
         if (currentPath != null) {
             open(currentPath);
@@ -1102,7 +1068,8 @@ public final class MainWindow extends JFrame {
         }
         if (!Files.isRegularFile(path)) {
             showError("Soubor neexistuje nebo není přístupný:\n" + path, null);
-            removeRecent(path);
+            recent.remove(path);
+            updateRecentMenu();
             return;
         }
         loading = true;
@@ -1124,6 +1091,9 @@ public final class MainWindow extends JFrame {
                     Throwable cause = ex.getCause() == null ? ex : ex.getCause();
                     if (cause instanceof ProjectLoader.PasswordRequiredException) {
                         askPassword(path, password != null);
+                    } else if (ErrorLog.isOutOfMemory(cause)) {
+                        status.setText(Str.t("Soubor se nepodařilo načíst."));
+                        showError(Str.t("Soubor je příliš velký pro dostupnou paměť. Zavřete ostatní okna programu a zkuste to znovu."), null);
                     } else {
                         status.setText("Soubor se nepodařilo načíst" + (project == null ? "." : Str.t("; předchozí projekt zůstává otevřený.")));
                         showError("Soubor se nepodařilo otevřít:\n" + path.getFileName()
@@ -1192,7 +1162,8 @@ public final class MainWindow extends JFrame {
         String name = path.getFileName().toString();
         titleLabel.setText(name);
         setTitle(name + " — " + APP_NAME);
-        addRecent(path);
+        recent.add(path);
+        updateRecentMenu();
         updateStats();
         ((java.awt.CardLayout) center.getLayout()).show(center, "main");
         status.setText("Načteno: " + path.toAbsolutePath() + Str.t("   (pouze pro čtení – soubor se nemění)"));
@@ -1207,87 +1178,17 @@ public final class MainWindow extends JFrame {
         });
     }
 
-    private void showError(String message, Throwable ex) {
+    void showError(String message, Throwable ex) {
         String detail = "";
         if (ex != null) {
             Throwable root = ProjectLoader.rootCause(ex);
-            detail = "\n\nTechnický detail: " + root.getClass().getSimpleName() + (root.getMessage() == null ? "" : ": " + root.getMessage());
+            detail = "\n\n" + Str.t("Technický detail: ") + root.getClass().getSimpleName() + (root.getMessage() == null ? "" : ": " + root.getMessage());
+            ErrorLog.write(ErrorLog.describe("dialog", ex));
         }
         JOptionPane.showMessageDialog(this, message + detail, Str.t("Chyba"), JOptionPane.ERROR_MESSAGE);
     }
 
-    // ---------------------------------------------------------------- export
-
-    private void exportCsv() {
-        if (project == null) {
-            JOptionPane.showMessageDialog(this, Str.t("Nejprve otevřete projekt."), Str.t("Export CSV"), JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        File f = FileDialogs.save(this, Str.t("Exportovat zobrazené úkoly do CSV"), exportDir(),
-                stripExt(currentPath.getFileName().toString()) + ".csv", new FileDialogs.Filter("CSV (*.csv)", "csv"));
-        if (f == null) {
-            return;
-        }
-        try {
-            List<Columns.Column> shown = new ArrayList<>();
-            for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
-                shown.add(model.columnAt(table.getColumnModel().getColumn(i).getModelIndex()));
-            }
-            CsvExport.write(f.toPath(), tree.visible(), columns, shown);
-            prefs.put("lastExportDir", f.getParent());
-            status.setText("Exportováno " + tree.visible().size() + Str.t(" řádků do ") + f.getAbsolutePath());
-        } catch (Exception ex) {
-            showError(Str.t("Export se nezdařil."), ex);
-        }
-    }
-
-    private void exportPng() {
-        if (project == null) {
-            JOptionPane.showMessageDialog(this, Str.t("Nejprve otevřete projekt."), Str.t("Uložit PNG"), JOptionPane.INFORMATION_MESSAGE);
-            return;
-        }
-        Dimension chartSize = gantt.getChart().getPreferredSize();
-        int tableWidth = table.getPreferredSize().width;
-        long w = (long) tableWidth + chartSize.width;
-        long h = (long) Theme.HEADER + Math.max(1, tree.visible().size() * Theme.ROW);
-        if (w * h > 60_000_000L) {
-            JOptionPane.showMessageDialog(this, Str.t("Obrázek by byl příliš velký (") + w + " × " + h + " px).\nZmenšete měřítko nebo sbalte část osnovy.",
-                    Str.t("Uložit PNG"), JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        File f = FileDialogs.save(this, Str.t("Uložit Ganttův diagram jako PNG"), exportDir(),
-                stripExt(currentPath.getFileName().toString()) + ".png", new FileDialogs.Filter("PNG (*.png)", "png"));
-        if (f == null) {
-            return;
-        }
-        try {
-            BufferedImage img = renderImage();
-            ImageIO.write(img, "png", f);
-            prefs.put("lastExportDir", f.getParent());
-            status.setText("Diagram uložen do " + f.getAbsolutePath() + " (" + img.getWidth() + " × " + img.getHeight() + " px)");
-        } catch (Exception ex) {
-            showError(Str.t("Uložení obrázku se nezdařilo."), ex);
-        }
-    }
-
-    /** Uloží hotový obrázek jako PNG (dialog s výběrem souboru). */
-    void savePng(BufferedImage img, String suffix, String title) {
-        if (project == null || img == null) {
-            return;
-        }
-        File f = FileDialogs.save(this, title, exportDir(), stripExt(currentPath.getFileName().toString()) + suffix + ".png",
-                new FileDialogs.Filter("PNG (*.png)", "png"));
-        if (f == null) {
-            return;
-        }
-        try {
-            ImageIO.write(img, "png", f);
-            prefs.put("lastExportDir", f.getParent());
-            status.setText("Uloženo do " + f.getAbsolutePath() + " (" + img.getWidth() + " × " + img.getHeight() + " px)");
-        } catch (Exception ex) {
-            showError(Str.t("Uložení obrázku se nezdařilo."), ex);
-        }
-    }
+    // ---------------------------------------------------------------- export (viz Exports)
 
     /** Tabulka + diagram v plné velikosti jako jeden obrázek. */
     BufferedImage renderImage() {
@@ -1341,193 +1242,11 @@ public final class MainWindow extends JFrame {
         return img;
     }
 
-    // ---------------------------------------------------------------- tisk a PDF
-
-    private static final double A4_W = 595.28;
-    private static final double A4_H = 841.89;
-    private static final double A3_W = 841.89;
-    private static final double A3_H = 1190.55;
-
-    private boolean checkPrintable(String title) {
-        if (project == null) {
-            JOptionPane.showMessageDialog(this, Str.t("Nejprve otevřete projekt."), title, JOptionPane.INFORMATION_MESSAGE);
-            return false;
-        }
-        if (tree.visible().isEmpty()) {
-            JOptionPane.showMessageDialog(this, Str.t("Není co tisknout – filtru neodpovídá žádný úkol."), title, JOptionPane.INFORMATION_MESSAGE);
-            return false;
-        }
-        return true;
-    }
-
-    /** Obrázek pro tisk: dvojnásobné rozlišení, ale s ochranou proti obřím obrázkům. */
-    private PrintLayout printLayout(boolean fitWidth) {
-        Dimension chartSize = gantt.getChart().getPreferredSize();
-        long w = (long) table.getPreferredSize().width + chartSize.width;
-        long h = (long) Theme.HEADER + Math.max(1, tree.visible().size() * Theme.ROW);
-        double scale = w * h * 4 > 40_000_000L ? 1.0 : 2.0;
-        if (w * h > 60_000_000L) {
-            return null;
-        }
-        String title = currentPath.getFileName() + "   —   " + Fmt.text(project.getProjectProperties().getProjectTitle());
-        return new PrintLayout(renderImage(scale), scale, tree.visible().size(), fitWidth, title);
-    }
-
-    private static JPanel printOptions(JCheckBox fit) {
-        JPanel p = new JPanel(new java.awt.GridLayout(0, 1, 0, 4));
-        fit.setFont(Theme.BASE);
-        p.add(fit);
-        JLabel hint = new JLabel("<html><span style='color:" + Theme.MUTED_HEX + "'>Tiskne se to, co je zobrazeno: viditelné řádky, zvolené sloupce a měřítko diagramu.<br>"
-                + Str.t("Hlavička tabulky a časová osa se opakují na každé stránce.</span></html>"));
-        hint.setFont(Theme.SMALL);
-        p.add(hint);
-        return p;
-    }
-
-    private void printChart() {
-        if (!checkPrintable(Str.t("Tisk"))) {
-            return;
-        }
-        JCheckBox fit = new JCheckBox(Str.t("Přizpůsobit na šířku stránky (jinak měřítko 1:1 a více stránek vedle sebe)"), prefs.getBoolean("printFit", true));
-        if (JOptionPane.showConfirmDialog(this, printOptions(fit), Str.t("Tisk"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
-            return;
-        }
-        prefs.putBoolean("printFit", fit.isSelected());
-        PrintLayout layout = printLayout(fit.isSelected());
-        if (layout == null) {
-            JOptionPane.showMessageDialog(this, Str.t("Diagram je pro tisk příliš velký. Zmenšete měřítko nebo sbalte část osnovy."), Str.t("Tisk"), JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        java.awt.print.PrinterJob job = java.awt.print.PrinterJob.getPrinterJob();
-        job.setJobName(APP_NAME + " – " + currentPath.getFileName());
-        java.awt.print.PageFormat pf = job.defaultPage();
-        pf.setOrientation(java.awt.print.PageFormat.LANDSCAPE);
-        job.setPrintable(layout, pf);
-        if (job.printDialog()) {
-            try {
-                job.print();
-                status.setText("Odesláno na tiskárnu: " + job.getPrintService().getName());
-            } catch (java.awt.print.PrinterException ex) {
-                showError(Str.t("Tisk se nezdařil."), ex);
-            }
-        }
-    }
-
-    private void exportPdf() {
-        if (!checkPrintable(Str.t("Uložit jako PDF"))) {
-            return;
-        }
-        JCheckBox fit = new JCheckBox(Str.t("Přizpůsobit na šířku stránky (jinak měřítko 1:1 a více stránek vedle sebe)"), prefs.getBoolean("printFit", true));
-        JComboBox<String> size = new JComboBox<>(new String[]{Str.t("A4 na šířku"), Str.t("A4 na výšku"), Str.t("A3 na šířku"), Str.t("A3 na výšku")});
-        size.setSelectedIndex(prefs.getInt("pdfSize", 0));
-        size.setFont(Theme.BASE);
-        JPanel p = printOptions(fit);
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        row.add(label(Str.t("Stránka:")));
-        row.add(size);
-        p.add(row, 1);
-        if (JOptionPane.showConfirmDialog(this, p, Str.t("Uložit jako PDF"), JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
-            return;
-        }
-        prefs.putBoolean("printFit", fit.isSelected());
-        prefs.putInt("pdfSize", size.getSelectedIndex());
-        File f = FileDialogs.save(this, Str.t("Uložit jako PDF"), exportDir(),
-                stripExt(currentPath.getFileName().toString()) + ".pdf", new FileDialogs.Filter("PDF (*.pdf)", "pdf"));
-        if (f == null) {
-            return;
-        }
-        try {
-            int pages = writePdf(f.toPath(), fit.isSelected(), size.getSelectedIndex());
-            prefs.put("lastExportDir", f.getParent());
-            status.setText("PDF uloženo do " + f.getAbsolutePath() + " (" + pages + Str.t(" str.)"));
-        } catch (Exception ex) {
-            showError(Str.t("Uložení PDF se nezdařilo."), ex);
-        }
-    }
-
-    /** Zapíše PDF; vrací počet stránek. {@code sizeIndex}: 0 A4 šířka, 1 A4 výška, 2 A3 šířka, 3 A3 výška. */
-    int writePdf(Path target, boolean fitWidth, int sizeIndex) throws java.io.IOException {
-        PrintLayout layout = printLayout(fitWidth);
-        if (layout == null) {
-            throw new java.io.IOException(Str.t("Diagram je příliš velký – zmenšete měřítko nebo sbalte část osnovy."));
-        }
-        double pw = sizeIndex >= 2 ? A3_H : A4_H;
-        double ph = sizeIndex >= 2 ? A3_W : A4_W;
-        if (sizeIndex % 2 == 1) {
-            double t = pw;
-            pw = ph;
-            ph = t;
-        }
-        double margin = 36;
-        double cw = pw - 2 * margin;
-        double ch = ph - 2 * margin;
-        int pages = layout.pageCount(cw, ch);
-        final double fpw = pw;
-        final double fph = ph;
-        PdfWriter.write(target, pages, i -> {
-            BufferedImage page = new BufferedImage((int) Math.round(fpw * 150 / 72), (int) Math.round(fph * 150 / 72), BufferedImage.TYPE_INT_RGB);
-            Graphics2D g = page.createGraphics();
-            g.setColor(Theme.BG);
-            g.fillRect(0, 0, page.getWidth(), page.getHeight());
-            g.scale(150 / 72.0, 150 / 72.0);
-            g.translate(margin, margin);
-            layout.paintPage(g, i, cw, ch);
-            g.dispose();
-            return page;
-        }, pw, ph, currentPath.getFileName().toString());
-        return pages;
-    }
-
-    private static String stripExt(String name) {
-        int i = name.lastIndexOf('.');
-        return i > 0 ? name.substring(0, i) : name;
-    }
-
     // ---------------------------------------------------------------- nedávné soubory, stav okna
-
-    private List<Path> recentFiles() {
-        List<Path> list = new ArrayList<>();
-        for (int i = 0; i < RECENT_MAX; i++) {
-            String v = prefs.get("recent" + i, null);
-            if (v != null && !v.isBlank()) {
-                list.add(Path.of(v));
-            }
-        }
-        return list;
-    }
-
-    private void storeRecent(List<Path> list) {
-        for (int i = 0; i < RECENT_MAX; i++) {
-            if (i < list.size()) {
-                prefs.put("recent" + i, list.get(i).toAbsolutePath().toString());
-            } else {
-                prefs.remove("recent" + i);
-            }
-        }
-        updateRecentMenu();
-    }
-
-    private void addRecent(Path path) {
-        List<Path> list = recentFiles();
-        Path abs = path.toAbsolutePath();
-        list.removeIf(p -> p.toAbsolutePath().equals(abs));
-        list.add(0, abs);
-        while (list.size() > RECENT_MAX) {
-            list.remove(list.size() - 1);
-        }
-        storeRecent(list);
-    }
-
-    private void removeRecent(Path path) {
-        List<Path> list = recentFiles();
-        Path abs = path.toAbsolutePath();
-        list.removeIf(p -> p.toAbsolutePath().equals(abs));
-        storeRecent(list);
-    }
 
     private void updateRecentMenu() {
         recentMenu.removeAll();
-        List<Path> list = recentFiles();
+        List<Path> list = recent.list();
         start.setRecent(list);
         for (MainWindow w : WINDOWS) {
             if (w != this) {
@@ -1559,7 +1278,10 @@ public final class MainWindow extends JFrame {
         }
         recentMenu.addSeparator();
         JMenuItem clear = new JMenuItem(Str.t("Vymazat seznam"));
-        clear.addActionListener(e -> storeRecent(new ArrayList<>()));
+        clear.addActionListener(e -> {
+            recent.clear();
+            updateRecentMenu();
+        });
         recentMenu.add(clear);
     }
 
@@ -1602,40 +1324,11 @@ public final class MainWindow extends JFrame {
             sb.append(kv[0]).append(':').append(kv[1]);
         }
         prefs.put("columns", sb.toString());
-    }
-
-    // ---------------------------------------------------------------- nápověda
-
-    private void showHelp() {
-        String text = "<html><body style='" + Theme.HTML_BODY + ";width:520px'>"
-                + Str.t("<b>Otevření souboru</b><br>Ctrl+O, tlačítko Otevřít… nebo přetažení souboru do okna. ")
-                + Str.t("Podporované formáty: MPP/MPT (Project 98 – 2021/365), XML (MSPDI), MPX, MPD.<br><br>")
-                + Str.t("<b>Osnova</b><br>Kliknutí na šipku u souhrnného úkolu, dvojklik nebo mezerník sbalí/rozbalí podúkoly. ")
-                + Str.t("Klávesy + a − rozbalí/sbalí vybraný souhrn. Ctrl+Shift+E rozbalí vše, Ctrl+Shift+C sbalí vše. ")
-                + Str.t("Pole Osnova rozbalí hierarchii do zvolené úrovně.<br><br>")
-                + Str.t("<b>Hledání a filtry</b><br>Ctrl+F přejde do pole Hledat (název, ID, WBS, zdroje, poznámky). ")
-                + Str.t("Filtr omezí seznam např. na kritické, zpožděné nebo nedokončené úkoly; nadřazené souhrny zůstávají vidět.<br><br>")
-                + Str.t("<b>Diagram</b><br>Měřítko: Dny/Týdny/Měsíce/Čtvrtletí/Roky/Přizpůsobit, Ctrl+kolečko myši přibližuje kolem kurzoru, ")
-                + Str.t("Ctrl+0 zobrazí celý projekt, Ctrl+T posune na dnešek, Ctrl+G na vybraný úkol. ")
-                + Str.t("Modrá = úkol, červená = kritický úkol, černý pruh = souhrn, kosočtverec = milník, zelená šipka = termín, ")
-                + Str.t("šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu.<br><br>")
-                + Str.t("<b>Export</b><br>Ctrl+E uloží zobrazené úkoly do CSV (otevře se v Excelu), Ctrl+Shift+P uloží diagram jako PNG.<br><br>")
-                + Str.t("Aplikace soubory pouze čte a nikam je neodesílá.")
-                + "</body></html>";
-        JOptionPane.showMessageDialog(this, text, Str.t("Ovládání"), JOptionPane.PLAIN_MESSAGE);
-    }
-
-    private void showAbout() {
-        String text = "<html><body style='" + Theme.HTML_BODY + ";width:420px'>"
-                + "<div style='font-size:14pt'>" + APP_NAME_HTML + " " + VERSION + "</div>"
-                + Str.t("Prohlížeč souborů Microsoft Project (pouze pro čtení).<br>")
-                + Str.t("Autor: ") + AUTHOR + Str.t(". Freeware – zdarma k použití i šíření v nezměněné podobě (Nápověda → Licence…).<br><br>")
-                + Str.t("Čtení souborů zajišťuje knihovna <b>MPXJ</b> (https://www.mpxj.org, licence LGPL 2.1+). ")
-                + Str.t("Licence všech knihoven třetích stran: Nápověda → Licence… (a složka <b>licenses</b> vedle programu).<br>")
-                + Str.t("Běhové prostředí: Java ") + System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ").<br><br>"
-                + Str.t("Tato aplikace není produktem společnosti Microsoft. Microsoft Project je ochranná známka Microsoft Corporation.")
-                + "</body></html>";
-        JOptionPane.showMessageDialog(this, text, Str.t("O aplikaci"), JOptionPane.PLAIN_MESSAGE, new ImageIcon(Icons.app(64)));
+        try {
+            prefs.flush();
+        } catch (java.util.prefs.BackingStoreException | RuntimeException ignored) {
+            // nastavení se uloží při dalším spuštění, nebo vůbec – nepodstatné
+        }
     }
 
     // ---------------------------------------------------------------- renderer
@@ -1702,9 +1395,5 @@ public final class MainWindow extends JFrame {
             setToolTipText(col == Columns.NAME ? Fmt.text(task.getName()) : text.length() > 20 ? text : null);
             return this;
         }
-    }
-
-    static Dimension screenSize() {
-        return Toolkit.getDefaultToolkit().getScreenSize();
     }
 }

@@ -388,17 +388,66 @@ public final class ResourceUsagePanel extends JPanel {
         return usage;
     }
 
+    private javax.swing.SwingWorker<Usage, Void> worker;
+
+    /** Výpočet běží na pozadí (u velkých projektů trvá sekundy); dokončený výsledek se zobrazí přes applyFilter(). */
     private void recompute() {
-        usage = project == null ? null : compute(project, period());
         resources.clear();
-        if (project != null) {
-            for (Resource r : project.getResources()) {
-                if (r.getName() != null && !r.getName().isBlank()) {
-                    resources.add(r);
-                }
+        if (worker != null) {
+            worker.cancel(false);
+            worker = null;
+        }
+        if (project == null) {
+            usage = null;
+            applyFilter();
+            return;
+        }
+        for (Resource r : project.getResources()) {
+            if (r.getName() != null && !r.getName().isBlank()) {
+                resources.add(r);
             }
         }
-        applyFilter();
+        usage = null;
+        resModel.set(null, false);
+        taskModel.set(null, false);
+        summary.setText(Str.t("Počítám vytížení…"));
+        final ProjectFile p = project;
+        final Period per = period();
+        javax.swing.SwingWorker<Usage, Void> wk = new javax.swing.SwingWorker<>() {
+            @Override
+            protected Usage doInBackground() {
+                return compute(p, per);
+            }
+
+            @Override
+            protected void done() {
+                if (this != worker) {
+                    return;
+                }
+                worker = null;
+                try {
+                    usage = get();
+                } catch (Exception ex) {
+                    usage = new Usage(new ArrayList<>(), new String[0]);
+                    ErrorLog.write(ErrorLog.describe("vytížení", ex));
+                    summary.setText(Str.t("Vytížení se nepodařilo spočítat."));
+                    return;
+                }
+                applyFilter();
+            }
+        };
+        worker = wk;
+        wk.execute();
+    }
+
+    /** Počká na dokončení výpočtu a zobrazí výsledek (testy; volat z vlákna událostí). */
+    void waitForCompute() throws Exception {
+        javax.swing.SwingWorker<Usage, Void> wk = worker;
+        if (wk != null) {
+            usage = wk.get();
+            worker = null;
+            applyFilter();
+        }
     }
 
     private void applyFilter() {

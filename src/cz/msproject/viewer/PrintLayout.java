@@ -29,7 +29,6 @@ public final class PrintLayout implements Printable {
     private final boolean fitWidth;
     private final String title;
     private final String footerLeft;
-    private PageFormat format;
 
     public PrintLayout(BufferedImage image, double imageScale, int rows, boolean fitWidth, String title) {
         this.image = image;
@@ -38,10 +37,6 @@ public final class PrintLayout implements Printable {
         this.fitWidth = fitWidth;
         this.title = title == null ? "" : title;
         this.footerLeft = MainWindow.APP_NAME + " · " + Fmt.dateTime(LocalDateTime.now());
-    }
-
-    public void setPageFormat(PageFormat f) {
-        format = f;
     }
 
     // --- geometrie ------------------------------------------------------------------
@@ -162,10 +157,6 @@ public final class PrintLayout implements Printable {
         paintPage(g, pageIndex, w, h);
         g.dispose();
         return PAGE_EXISTS;
-    }
-
-    public PageFormat pageFormat() {
-        return format;
     }
 
     /** Vykreslí stránku do bitmapy v daném DPI (pro PDF). */

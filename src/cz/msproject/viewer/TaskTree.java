@@ -307,18 +307,6 @@ public final class TaskTree {
         return byTask.get(t);
     }
 
-    public Row findByUniqueId(Integer uid) {
-        if (uid == null) {
-            return null;
-        }
-        for (Row r : all) {
-            if (uid.equals(r.task.getUniqueID())) {
-                return r;
-            }
-        }
-        return null;
-    }
-
     /** Index řádku mezi viditelnými (−1 = není vidět); mapa se staví líně po každém rebuild(). */
     public int indexOfVisible(Row r) {
         if (visibleIndex == null) {

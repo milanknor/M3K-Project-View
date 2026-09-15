@@ -277,6 +277,31 @@ public final class SelfTest {
         }
         check(total > 0, "Nebyly zadány žádné testovací soubory");
 
+        // pomocné třídy: escapování HTML, log chyb, nedávné soubory
+        check(Fmt.html("a<b>'\"&\n").equals("a&lt;b&gt;&#39;&quot;&amp;<br>"), "Fmt.html neescapuje správně: " + Fmt.html("a<b>'\"&\n"));
+        check(ErrorLog.describe("test", new IllegalStateException("x")).contains("IllegalStateException: x"), "ErrorLog.describe bez výjimky");
+        check(ErrorLog.isOutOfMemory(new RuntimeException(new OutOfMemoryError())) && !ErrorLog.isOutOfMemory(new RuntimeException()), "isOutOfMemory nesedí");
+        java.util.prefs.Preferences testPrefs = java.util.prefs.Preferences.userRoot().node("m3k-project-view-test");
+        try {
+            testPrefs.clear();
+            testPrefs.put("recent0", "C:\\neexistuje\\a.mpp");
+            testPrefs.put("recent1", "C:\\neplatna<>|cesta?*.mpp");
+            RecentFiles rf = new RecentFiles(testPrefs);
+            check(rf.list().size() >= 1, "RecentFiles nevrátil platnou položku");
+            rf.add(Path.of("C:\\x\\b.mpp"));
+            check(rf.list().get(0).toString().endsWith("b.mpp"), "RecentFiles.add nedal soubor na začátek");
+            rf.add(Path.of("C:\\x\\b.mpp"));
+            check(rf.list().stream().filter(x -> x.toString().endsWith("b.mpp")).count() == 1, "RecentFiles duplikuje položky");
+            for (int i = 0; i < 20; i++) {
+                rf.add(Path.of("C:\\x\\f" + i + ".mpp"));
+            }
+            check(rf.list().size() == RecentFiles.MAX, "RecentFiles neomezuje délku");
+            rf.clear();
+            check(rf.list().isEmpty(), "RecentFiles.clear nevymazal");
+        } finally {
+            testPrefs.removeNode();
+        }
+
         // překlady, kontrola verze
         check(Str.dictionarySize() > 300, "Slovník překladů je podezřele malý: " + Str.dictionarySize());
         check(Str.isEnglish() ? Str.t("Soubor").equals("File") : Str.t("Soubor").equals("Soubor"), "Str.t nevrací očekávaný text");
@@ -482,7 +507,7 @@ public final class SelfTest {
                 check(pageImg.getWidth() == 770 && pageImg.getHeight() == 520, "Stránka má špatné rozměry");
                 Path pdf = Files.createTempFile("m3k-print-", ".pdf");
                 try {
-                    int pages = w.writePdf(pdf, true, 0);
+                    int pages = w.exports.writePdf(pdf, true, 0);
                     byte[] bytes = Files.readAllBytes(pdf);
                     check(pages >= 1 && bytes.length > 1000, "PDF je prázdné");
                     String head = new String(bytes, 0, 8, StandardCharsets.ISO_8859_1);
@@ -514,6 +539,7 @@ public final class SelfTest {
                 // záložka Vytížení: vykreslit do PNG
                 w.tabs.setSelectedIndex(3);
                 w.usage.setPeriod(ResourceUsagePanel.Period.WEEKS);
+                w.usage.waitForCompute();
                 if (w.usage.table().getRowCount() > 0) {
                     w.usage.table().setRowSelectionInterval(0, 0);
                 }

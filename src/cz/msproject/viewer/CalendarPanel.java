@@ -51,8 +51,8 @@ public final class CalendarPanel extends JPanel {
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private final JList<String> list = new JList<>(listModel);
     private final List<ProjectCalendar> calendars = new ArrayList<>();
-    private final DefaultTableModel weekModel = readOnly(Str.t("Den"), Str.t("Typ"), Str.t("Pracovní doba"), Str.t("Hodin"));
-    private final DefaultTableModel exceptionModel = readOnly(Str.t("Název"), Str.t("Od"), Str.t("Do"), Str.t("Pracovní"), Str.t("Pracovní doba"));
+    private final DefaultTableModel weekModel = Ui.readOnlyModel(Str.t("Den"), Str.t("Typ"), Str.t("Pracovní doba"), Str.t("Hodin"));
+    private final DefaultTableModel exceptionModel = Ui.readOnlyModel(Str.t("Název"), Str.t("Od"), Str.t("Do"), Str.t("Pracovní"), Str.t("Pracovní doba"));
     private final JTable weekTable = new JTable(weekModel);
     private final JTable exceptionTable = new JTable(exceptionModel);
     private final JLabel title = new JLabel(" ");
@@ -76,13 +76,7 @@ public final class CalendarPanel extends JPanel {
         left.setPreferredSize(new Dimension(260, 100));
 
         for (JTable t : new JTable[]{weekTable, exceptionTable}) {
-            t.setFont(Theme.BASE);
-            t.setRowHeight(24);
-            t.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-            t.getTableHeader().setReorderingAllowed(false);
-            t.setShowVerticalLines(false);
-            t.setGridColor(Theme.GRID);
-            t.setFillsViewportHeight(true);
+            Ui.styleTable(t);
         }
         weekTable.getColumnModel().getColumn(0).setPreferredWidth(90);
         weekTable.getColumnModel().getColumn(1).setPreferredWidth(90);
@@ -94,10 +88,10 @@ public final class CalendarPanel extends JPanel {
         title.setBorder(BorderFactory.createEmptyBorder(8, 12, 4, 12));
 
         JPanel week = new JPanel(new BorderLayout());
-        week.add(section(Str.t("Pracovní týden")), BorderLayout.NORTH);
+        week.add(Ui.section(Str.t("Pracovní týden")), BorderLayout.NORTH);
         week.add(new JScrollPane(weekTable), BorderLayout.CENTER);
         JPanel exceptions = new JPanel(new BorderLayout());
-        exceptions.add(section(Str.t("Výjimky (svátky, mimořádné dny)")), BorderLayout.NORTH);
+        exceptions.add(Ui.section(Str.t("Výjimky (svátky, mimořádné dny)")), BorderLayout.NORTH);
         exceptions.add(new JScrollPane(exceptionTable), BorderLayout.CENTER);
         JSplitPane tables = new JSplitPane(JSplitPane.VERTICAL_SPLIT, week, exceptions);
         tables.setResizeWeight(0.45);
@@ -117,13 +111,13 @@ public final class CalendarPanel extends JPanel {
         nav.add(monthLabel);
         nav.add(next);
         nav.add(today);
-        monthPanel.add(section(Str.t("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek")), BorderLayout.NORTH);
+        monthPanel.add(Ui.section(Str.t("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek")), BorderLayout.NORTH);
         monthPanel.add(nav, BorderLayout.SOUTH);
         monthPanel.add(grid, BorderLayout.CENTER);
         // navigace nahoře, mřížka pod ní
         monthPanel.remove(nav);
         JPanel monthTop = new JPanel(new BorderLayout());
-        monthTop.add(section(Str.t("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek")), BorderLayout.NORTH);
+        monthTop.add(Ui.section(Str.t("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek")), BorderLayout.NORTH);
         monthTop.add(nav, BorderLayout.CENTER);
         monthPanel.removeAll();
         monthPanel.add(monthTop, BorderLayout.NORTH);
@@ -139,25 +133,6 @@ public final class CalendarPanel extends JPanel {
         split.setBorder(null);
         split.setDividerLocation(260);
         add(split, BorderLayout.CENTER);
-    }
-
-    private static JLabel section(String s) {
-        JLabel l = new JLabel(s);
-        l.setFont(Theme.BOLD);
-        l.setForeground(Theme.MUTED);
-        l.setBorder(BorderFactory.createEmptyBorder(6, 12, 4, 12));
-        return l;
-    }
-
-    private static DefaultTableModel readOnly(String... cols) {
-        return new DefaultTableModel(cols, 0) {
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
     }
 
     public void setProject(ProjectFile p) {

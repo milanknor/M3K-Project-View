@@ -27,8 +27,8 @@ public final class DetailsPanel extends JPanel {
 
     private final JTabbedPane tabs = new JTabbedPane();
     private final JEditorPane general = new JEditorPane("text/html", "");
-    private final DefaultTableModel assignModel = readOnly(Str.t("Zdroj"), Str.t("Typ"), Str.t("Jednotky"), Str.t("Práce"), Str.t("Zahájení"), Str.t("Dokončení"), Str.t("% práce"), Str.t("Náklady"));
-    private final DefaultTableModel linkModel = readOnly(Str.t("Směr"), Str.t("ID"), Str.t("Název úkolu"), Str.t("Typ vazby"), Str.t("Prodleva"), Str.t("Zahájení"), Str.t("Dokončení"));
+    private final DefaultTableModel assignModel = Ui.readOnlyModel(Str.t("Zdroj"), Str.t("Typ"), Str.t("Jednotky"), Str.t("Práce"), Str.t("Zahájení"), Str.t("Dokončení"), Str.t("% práce"), Str.t("Náklady"));
+    private final DefaultTableModel linkModel = Ui.readOnlyModel(Str.t("Směr"), Str.t("ID"), Str.t("Název úkolu"), Str.t("Typ vazby"), Str.t("Prodleva"), Str.t("Zahájení"), Str.t("Dokončení"));
     private final JTable assignTable = new JTable(assignModel);
     private final JTable linkTable = new JTable(linkModel);
     private final JTextArea notes = new JTextArea();
@@ -61,14 +61,8 @@ public final class DetailsPanel extends JPanel {
         notes.setFont(Theme.BASE);
         notes.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
         for (JTable t : new JTable[]{assignTable, linkTable}) {
-            t.setFont(Theme.BASE);
-            t.setRowHeight(24);
-            t.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            Ui.styleTable(t);
             t.setAutoCreateRowSorter(false);
-            t.getTableHeader().setReorderingAllowed(false);
-            t.setShowVerticalLines(false);
-            t.setGridColor(Theme.GRID);
-            t.setFillsViewportHeight(true);
         }
         linkTable.addMouseListener(new MouseAdapter() {
             @Override
@@ -88,17 +82,6 @@ public final class DetailsPanel extends JPanel {
         tabs.addTab(Str.t("Poznámky"), new JScrollPane(notes));
         add(tabs, BorderLayout.CENTER);
         show(null);
-    }
-
-    private static DefaultTableModel readOnly(String... cols) {
-        return new DefaultTableModel(cols, 0) {
-            private static final long serialVersionUID = 1L;
-
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
     }
 
     public void setNavigator(Consumer<Task> navigator) {

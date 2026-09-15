@@ -128,7 +128,9 @@ if ($Package) {
         "--add-modules", "java.desktop,java.sql,java.naming,java.prefs,java.logging,java.xml,java.management,java.security.jgss,jdk.charsets,jdk.unsupported,jdk.crypto.ec",
         "--java-options", "-Dlog4j2.loggerContextFactory=org.apache.logging.log4j.simple.SimpleLoggerContextFactory",
         "--java-options", "-Dfile.encoding=UTF-8",
-        "--java-options", "-Xss4m"
+        "--java-options", "-Xss4m",
+        "--java-options", "-XX:MaxRAMPercentage=60",
+        "--java-options", "-XX:+UseStringDeduplication"
     )
     if ($icon) { $args += @("--icon", $icon) }
     Write-Host "jpackage…"

@@ -245,6 +245,7 @@ public final class Fmt {
                 case '>': sb.append("&gt;"); break;
                 case '&': sb.append("&amp;"); break;
                 case '"': sb.append("&quot;"); break;
+                case '\'': sb.append("&#39;"); break;
                 case '\n': sb.append("<br>"); break;
                 default: sb.append(c);
             }

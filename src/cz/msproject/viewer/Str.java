@@ -219,6 +219,14 @@ public final class Str {
                 {"šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu.<br><br>", "grey bar = baseline, red vertical line = today, blue = status date.<br><br>"},
                 {"<b>Export</b><br>Ctrl+E uloží zobrazené úkoly do CSV (otevře se v Excelu), Ctrl+Shift+P uloží diagram jako PNG.<br><br>", "<b>Export</b><br>Ctrl+E saves visible tasks to CSV (opens in Excel), Ctrl+Shift+P saves the chart as PNG.<br><br>"},
                 {"Čeština", "Czech"}, {"English", "English"},
+                // chyby
+                {"Technický detail: ", "Technical detail: "}, {"Podrobnosti: ", "Details: "},
+                {"Došla paměť. Zavřete jiná okna nebo otevřete menší soubor; pro velmi velké projekty pomůže sbalit osnovu nebo zmenšit měřítko.",
+                        "Out of memory. Close other windows or open a smaller file; for very large projects collapse the outline or reduce the scale."},
+                {"V programu nastala neočekávaná chyba. Program běží dál, ale zkontrolujte poslední akci.", "An unexpected error occurred. The program keeps running, but check your last action."},
+                {"Soubor je příliš velký pro dostupnou paměť. Zavřete ostatní okna programu a zkuste to znovu.", "The file is too large for the available memory. Close other program windows and try again."},
+                {"Počítám vytížení…", "Computing usage…"}, {"Vytížení se nepodařilo spočítat.", "Usage could not be computed."},
+                {"Zmenšete měřítko nebo sbalte část osnovy.", "Reduce the scale or collapse part of the outline."},
                 {"Změna jazyka se projeví po restartu programu. Restartovat nyní?", "The language change takes effect after restarting the program. Restart now?"},
                 {"Restart se nezdařil – ukončete a spusťte program ručně.", "Restart failed – please close and start the program manually."},
         };

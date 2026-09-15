@@ -150,10 +150,6 @@ public final class GanttPanel extends javax.swing.JPanel {
         zoomListener = l;
     }
 
-    public Zoom getZoom() {
-        return zoom;
-    }
-
     public double getPxPerDay() {
         return pxPerDay;
     }
@@ -175,11 +171,6 @@ public final class GanttPanel extends javax.swing.JPanel {
 
     public void setShowSlack(boolean v) {
         showSlack = v;
-        chart.repaint();
-    }
-
-    public void setShowToday(boolean v) {
-        showToday = v;
         chart.repaint();
     }
 
@@ -1042,11 +1033,4 @@ public final class GanttPanel extends javax.swing.JPanel {
         return img;
     }
 
-    public JViewport viewport() {
-        return scroll.getViewport();
-    }
-
-    public Point viewPosition() {
-        return scroll.getViewport().getViewPosition();
-    }
 }
