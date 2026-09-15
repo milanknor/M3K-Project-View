@@ -158,8 +158,70 @@ public final class Columns {
 
     private final Map<String, Column> byKey = new LinkedHashMap<>();
     private final List<Column> custom = new ArrayList<>();
+    private final List<Integer> baselines = new ArrayList<>();
     private String currency = "";
     private ProjectProperties props;
+
+    /** Indexy uložených základních plánů (0 = hlavní, 1–10 = Základní plán 1–10), které má aspoň jeden úkol. */
+    public static List<Integer> availableBaselines(ProjectFile p) {
+        List<Integer> out = new ArrayList<>();
+        if (p == null) {
+            return out;
+        }
+        for (int i = 0; i <= 10; i++) {
+            for (Task t : p.getTasks()) {
+                if (baselineStart(t, i) != null || baselineFinish(t, i) != null) {
+                    out.add(i);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    public static LocalDateTime baselineStart(Task t, int i) {
+        try {
+            return i == 0 ? t.getBaselineStart() : t.getBaselineStart(i);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    public static LocalDateTime baselineFinish(Task t, int i) {
+        try {
+            return i == 0 ? t.getBaselineFinish() : t.getBaselineFinish(i);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    public static Duration baselineDuration(Task t, int i) {
+        try {
+            return i == 0 ? t.getBaselineDuration() : t.getBaselineDuration(i);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    public static Duration baselineWork(Task t, int i) {
+        try {
+            return i == 0 ? t.getBaselineWork() : t.getBaselineWork(i);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    public static Number baselineCost(Task t, int i) {
+        try {
+            return i == 0 ? t.getBaselineCost() : t.getBaselineCost(i);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    public static String baselineName(int i) {
+        return i == 0 ? "Základní plán" : "Základní plán " + i;
+    }
 
     public Columns() {
         for (Column c : BUILTIN) {
@@ -178,12 +240,34 @@ public final class Columns {
 
     /** Načte měnu, jednotky a vlastní pole z projektu (null = žádný projekt). */
     public void setProject(ProjectFile p) {
-        byKey.keySet().removeIf(k -> k.startsWith("custom:"));
+        byKey.keySet().removeIf(k -> k.startsWith("custom:") || k.startsWith("baseline") && Character.isDigit(k.charAt(8)));
         custom.clear();
+        baselines.clear();
         props = p == null ? null : p.getProjectProperties();
         currency = p == null ? "" : Fmt.text(p.getProjectProperties().getCurrencySymbol());
         if (p == null) {
             return;
+        }
+        baselines.addAll(availableBaselines(p));
+        for (int i : baselines) {
+            if (i == 0) {
+                continue;
+            }
+            final int n = i;
+            String suffix = " (ZP " + n + ")";
+            for (Column c : new Column[]{
+                    new Column("baseline" + n + "Start", "Zahájení" + suffix, Category.BASELINE, 110, Align.LEFT,
+                            (r, c2) -> Fmt.date(baselineStart(r.task, n)), (r, c2) -> baselineStart(r.task, n)),
+                    new Column("baseline" + n + "Finish", "Dokončení" + suffix, Category.BASELINE, 110, Align.LEFT,
+                            (r, c2) -> Fmt.date(baselineFinish(r.task, n)), (r, c2) -> baselineFinish(r.task, n)),
+                    new Column("baseline" + n + "Duration", "Trvání" + suffix, Category.BASELINE, 100, Align.RIGHT,
+                            (r, c2) -> Fmt.duration(baselineDuration(r.task, n)), (r, c2) -> c2.minutes(baselineDuration(r.task, n))),
+                    new Column("baseline" + n + "Work", "Práce" + suffix, Category.BASELINE, 100, Align.RIGHT,
+                            (r, c2) -> Fmt.duration(baselineWork(r.task, n)), (r, c2) -> c2.minutes(baselineWork(r.task, n))),
+                    new Column("baseline" + n + "Cost", "Náklady" + suffix, Category.BASELINE, 110, Align.RIGHT,
+                            (r, c2) -> Fmt.money(baselineCost(r.task, n), c2.currency), (r, c2) -> num(baselineCost(r.task, n)))}) {
+                byKey.put(c.key, c);
+            }
         }
         for (TaskField f : TaskField.values()) {
             Matcher m = CUSTOM_FIELD.matcher(f.name());
@@ -299,6 +383,11 @@ public final class Columns {
 
     public List<Column> custom() {
         return Collections.unmodifiableList(custom);
+    }
+
+    /** Základní plány přítomné v projektu (viz {@link #availableBaselines}). */
+    public List<Integer> baselines() {
+        return Collections.unmodifiableList(baselines);
     }
 
     public List<Column> all() {

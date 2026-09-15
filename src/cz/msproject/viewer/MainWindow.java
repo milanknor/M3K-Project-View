@@ -80,6 +80,8 @@ public final class MainWindow extends JFrame {
     public static final String VERSION = "0.1.0";
     public static final String AUTHOR = "Milan Knor";
     private static final int RECENT_MAX = 8;
+    /** Otevřená okna (každé = jeden soubor); po zavření posledního se aplikace ukončí. */
+    static final List<MainWindow> WINDOWS = new ArrayList<>();
 
     final TaskTree tree = new TaskTree();
     final Columns columns = new Columns();
@@ -98,6 +100,7 @@ public final class MainWindow extends JFrame {
     final JComboBox<GanttPanel.Zoom> zoomBox = new JComboBox<>(GanttPanel.Zoom.values());
     final JCheckBox linksBox = new JCheckBox("Vazby", true);
     final JCheckBox baselineBox = new JCheckBox("Základní plán", false);
+    final JComboBox<String> baselineSel = new JComboBox<>();
     final JCheckBox labelsBox = new JCheckBox("Popisky", true);
     final JCheckBox slackBox = new JCheckBox("Rezerva", false);
     final JLabel status = new JLabel("Otevřete soubor Microsoft Project (Ctrl+O) nebo jej přetáhněte do okna.");
@@ -105,6 +108,9 @@ public final class MainWindow extends JFrame {
     final JLabel titleLabel = new JLabel("Žádný otevřený soubor");
     final JTabbedPane tabs = new JTabbedPane();
     final JMenu recentMenu = new JMenu("Nedávné soubory");
+    final JMenu windowMenu = new JMenu("Okno");
+    final StartPanel start = new StartPanel(this::open, this::chooseFile);
+    final JPanel center = new JPanel(new java.awt.CardLayout());
     final JScrollPane tableScroll;
     final JSplitPane mainSplit;
     final JSplitPane verticalSplit;
@@ -117,9 +123,10 @@ public final class MainWindow extends JFrame {
 
     public MainWindow() {
         super(APP_NAME);
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setIconImages(Icons.appImages());
         setMinimumSize(new Dimension(900, 600));
+        WINDOWS.add(this);
 
         // ---- tabulka úkolů ----
         table.setFont(Theme.BASE);
@@ -248,15 +255,25 @@ public final class MainWindow extends JFrame {
 
         setJMenuBar(buildMenu());
         add(buildToolbar(), BorderLayout.NORTH);
-        add(tabs, BorderLayout.CENTER);
+        center.add(start, "start");
+        center.add(tabs, "main");
+        add(center, BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
 
-        installDropHandler(getRootPane(), table, gantt.getChart(), gantt.getHeader(), resources.table(), usage.table(), usage, details, info, tabs);
+        installDropHandler(getRootPane(), table, gantt.getChart(), gantt.getHeader(), resources.table(), usage.table(), usage, details, info, tabs, start);
 
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
                 saveWindowState();
+            }
+
+            @Override
+            public void windowClosed(WindowEvent e) {
+                WINDOWS.remove(MainWindow.this);
+                if (WINDOWS.isEmpty()) {
+                    System.exit(0);
+                }
             }
         });
         restoreWindowState();
@@ -272,8 +289,17 @@ public final class MainWindow extends JFrame {
         JMenu file = new JMenu("Soubor");
         file.setMnemonic('S');
         file.add(item("Otevřít…", KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK), this::chooseFile));
+        file.add(item("Otevřít v novém okně…", KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
+            MainWindow w = newWindow();
+            w.chooseFile();
+        }));
+        file.add(item("Nové okno", KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK), this::newWindow));
         file.add(recentMenu);
         file.add(item("Znovu načíst", KeyStroke.getKeyStroke(KeyEvent.VK_F5, 0), this::reload));
+        file.add(item("Zavřít okno", KeyStroke.getKeyStroke(KeyEvent.VK_W, InputEvent.CTRL_DOWN_MASK), () -> {
+            saveWindowState();
+            dispose();
+        }));
         file.addSeparator();
         file.add(item("Exportovat zobrazené úkoly do CSV…", KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK), this::exportCsv));
         file.add(item("Uložit Ganttův diagram jako PNG…", KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::exportPng));
@@ -282,7 +308,9 @@ public final class MainWindow extends JFrame {
         file.addSeparator();
         file.add(item("Konec", KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK), () -> {
             saveWindowState();
-            dispose();
+            for (MainWindow w : new ArrayList<>(WINDOWS)) {
+                w.dispose();
+            }
             System.exit(0);
         }));
         bar.add(file);
@@ -322,6 +350,34 @@ public final class MainWindow extends JFrame {
         view.add(check("Zobrazit popisky zdrojů", labelsBox));
         view.add(check("Zobrazit celkovou rezervu", slackBox));
         bar.add(view);
+
+        windowMenu.setMnemonic('O');
+        windowMenu.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                windowMenu.removeAll();
+                for (MainWindow w : WINDOWS) {
+                    JCheckBoxMenuItem mi = new JCheckBoxMenuItem(w.currentPath == null ? "(bez souboru)" : w.currentPath.getFileName().toString(), w == MainWindow.this);
+                    mi.addActionListener(ev -> {
+                        w.setState(NORMAL);
+                        w.toFront();
+                        w.requestFocus();
+                    });
+                    windowMenu.add(mi);
+                }
+                windowMenu.addSeparator();
+                windowMenu.add(item("Nové okno", null, MainWindow.this::newWindow));
+            }
+
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {
+            }
+        });
+        bar.add(windowMenu);
 
         JMenu help = new JMenu("Nápověda");
         help.setMnemonic('N');
@@ -452,6 +508,18 @@ public final class MainWindow extends JFrame {
         }
         linksBox.addActionListener(e -> gantt.setShowLinks(linksBox.isSelected()));
         baselineBox.addActionListener(e -> gantt.setShowBaseline(baselineBox.isSelected()));
+        baselineSel.setFont(Theme.BASE);
+        baselineSel.setVisible(false);
+        baselineSel.setToolTipText("Který uložený základní plán se má zobrazit (soubor jich má více)");
+        baselineSel.addActionListener(e -> {
+            if (!suppressEvents && baselineSel.getSelectedIndex() >= 0 && baselineSel.getSelectedIndex() < columns.baselines().size()) {
+                gantt.setBaselineIndex(columns.baselines().get(baselineSel.getSelectedIndex()));
+                if (!baselineBox.isSelected()) {
+                    baselineBox.doClick();
+                }
+            }
+        });
+        bar.add(baselineSel);
         labelsBox.addActionListener(e -> gantt.setShowLabels(labelsBox.isSelected()));
         slackBox.addActionListener(e -> gantt.setShowSlack(slackBox.isSelected()));
         baselineBox.setToolTipText("Šedý pruh pod úkolem = uložený základní plán");
@@ -798,6 +866,23 @@ public final class MainWindow extends JFrame {
         stats.setText(s);
     }
 
+    private void updateBaselineChoices() {
+        suppressEvents = true;
+        try {
+            baselineSel.removeAllItems();
+            for (int i : columns.baselines()) {
+                baselineSel.addItem(Columns.baselineName(i));
+            }
+            baselineSel.setVisible(columns.baselines().size() > 1);
+            if (baselineSel.getItemCount() > 0) {
+                baselineSel.setSelectedIndex(0);
+            }
+            gantt.setBaselineIndex(columns.baselines().isEmpty() ? 0 : columns.baselines().get(0));
+        } finally {
+            suppressEvents = false;
+        }
+    }
+
     private void updateLevelBox() {
         suppressEvents = true;
         try {
@@ -814,6 +899,15 @@ public final class MainWindow extends JFrame {
     }
 
     // ---------------------------------------------------------------- otevírání
+
+    /** Otevře další okno (kaskádově posunuté) – každé okno zobrazuje jeden soubor. */
+    MainWindow newWindow() {
+        MainWindow w = new MainWindow();
+        w.setLocation(getX() + 32, getY() + 32);
+        w.setSize(getSize());
+        w.setVisible(true);
+        return w;
+    }
 
     void chooseFile() {
         if (loading) {
@@ -923,6 +1017,7 @@ public final class MainWindow extends JFrame {
         columns.setProject(file);
         table.clearSelection();
         applyColumns(currentColumnSetting());
+        updateBaselineChoices();
         gantt.setProject(file);
         details.setProject(file);
         details.show(null);
@@ -935,6 +1030,7 @@ public final class MainWindow extends JFrame {
         setTitle(name + " — " + APP_NAME);
         addRecent(path);
         updateStats();
+        ((java.awt.CardLayout) center.getLayout()).show(center, "main");
         status.setText("Načteno: " + path.toAbsolutePath() + "   (pouze pro čtení – soubor se nemění)");
         if (tree.size() == 0) {
             status.setText("Soubor byl načten, ale neobsahuje žádné úkoly: " + path.getFileName());
@@ -1266,6 +1362,12 @@ public final class MainWindow extends JFrame {
     private void updateRecentMenu() {
         recentMenu.removeAll();
         List<Path> list = recentFiles();
+        start.setRecent(list);
+        for (MainWindow w : WINDOWS) {
+            if (w != this) {
+                w.start.setRecent(list);
+            }
+        }
         if (list.isEmpty()) {
             JMenuItem none = new JMenuItem("(žádné)");
             none.setEnabled(false);
@@ -1278,7 +1380,14 @@ public final class MainWindow extends JFrame {
             if (n <= 9) {
                 mi.setMnemonic('0' + n);
             }
-            mi.addActionListener(e -> open(p));
+            mi.setToolTipText("Shift+kliknutí otevře v novém okně");
+            mi.addActionListener(e -> {
+                if ((e.getModifiers() & ActionEvent.SHIFT_MASK) != 0 && project != null) {
+                    newWindow().open(p);
+                } else {
+                    open(p);
+                }
+            });
             recentMenu.add(mi);
             n++;
         }

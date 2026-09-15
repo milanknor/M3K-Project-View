@@ -96,7 +96,18 @@ public final class GanttPanel extends javax.swing.JPanel {
     private boolean showLabels = true;
     private boolean showSlack = false;
     private boolean showToday = true;
+    /** Který základní plán se kreslí (0 = hlavní, 1–10). */
+    private int baselineIndex = 0;
     private Consumer<Zoom> zoomListener;
+
+    public void setBaselineIndex(int i) {
+        baselineIndex = Math.max(0, Math.min(10, i));
+        chart.repaint();
+    }
+
+    public int getBaselineIndex() {
+        return baselineIndex;
+    }
 
     public GanttPanel(TaskTree tree, JTable table) {
         super(new BorderLayout());
@@ -203,8 +214,10 @@ public final class GanttPanel extends javax.swing.JPanel {
             Task t = r.task;
             dates.add(t.getStart());
             dates.add(t.getFinish());
-            dates.add(t.getBaselineStart());
-            dates.add(t.getBaselineFinish());
+            for (int i = 0; i <= 10; i++) {
+                dates.add(Columns.baselineStart(t, i));
+                dates.add(Columns.baselineFinish(t, i));
+            }
             dates.add(t.getDeadline());
         }
         if (project != null) {
@@ -718,9 +731,11 @@ public final class GanttPanel extends javax.swing.JPanel {
             LocalDateTime f = t.getFinish() != null ? t.getFinish() : t.getStart();
             g.setStroke(new BasicStroke(1f));
 
-            if (showBaseline && t.getBaselineStart() != null && t.getBaselineFinish() != null) {
-                int a = (int) Math.round(x(t.getBaselineStart()));
-                int b = (int) Math.round(x(t.getBaselineFinish()));
+            LocalDateTime bs = Columns.baselineStart(t, baselineIndex);
+            LocalDateTime bf = Columns.baselineFinish(t, baselineIndex);
+            if (showBaseline && bs != null && bf != null) {
+                int a = (int) Math.round(x(bs));
+                int b = (int) Math.round(x(bf));
                 g.setColor(Theme.BASELINE);
                 if (t.getMilestone() || b - a < 2) {
                     g.fillPolygon(new int[]{a, a + 4, a, a - 4}, new int[]{y0 + 18, y0 + 22, y0 + 26, y0 + 22}, 4);

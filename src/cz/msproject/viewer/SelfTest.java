@@ -91,6 +91,15 @@ public final class SelfTest {
             if (lowerName.contains("flags")) {
                 check(!columns.custom().isEmpty(), "Soubor s vlastními poli nevrátil žádné vlastní sloupce: " + p);
             }
+            if (lowerName.contains("baseline")) {
+                check(!columns.baselines().isEmpty(), "Soubor se základním plánem nenabídl žádný plán");
+                System.out.println("  základní plány: " + columns.baselines());
+            }
+            if (lowerName.contains("baselines")) {
+                check(columns.baselines().size() >= 2, "Soubor se základními plány nenabídl více plánů: " + columns.baselines());
+                int other = columns.baselines().get(columns.baselines().get(0) == 0 ? 1 : 0);
+                check(columns.byKey("baseline" + other + "Start") != null, "Chybí sloupec základního plánu " + other);
+            }
             if (!columns.custom().isEmpty()) {
                 StringBuilder cs = new StringBuilder();
                 for (Columns.Column c : columns.custom()) {
@@ -263,6 +272,14 @@ public final class SelfTest {
             MainWindow w = new MainWindow();
             try {
                 w.setSize(1400, 860);
+                w.addNotify();
+                w.validate();
+                check(MainWindow.WINDOWS.contains(w), "Okno není v seznamu oken");
+                BufferedImage startImg = new BufferedImage(w.getWidth(), w.getHeight(), BufferedImage.TYPE_INT_RGB);
+                java.awt.Graphics2D sg = startImg.createGraphics();
+                w.getRootPane().printAll(sg);
+                sg.dispose();
+                ImageIO.write(startImg, "png", out.resolveSibling(stripExt(out.getFileName().toString()) + "-start.png").toFile());
                 w.apply(file, project);
                 w.addNotify();
                 w.validate();

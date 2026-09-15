@@ -163,6 +163,28 @@ public final class DetailsPanel extends JPanel {
             cell(h, "Kontakt", Fmt.orDash(t.getContact()));
             h.append("</tr>");
         }
+        if (columns != null && columns.baselines().size() > 1) {
+            int n = 0;
+            for (int i : columns.baselines()) {
+                if (i == 0) {
+                    continue;
+                }
+                java.time.LocalDateTime bs = Columns.baselineStart(t, i);
+                java.time.LocalDateTime bf = Columns.baselineFinish(t, i);
+                if (bs == null && bf == null) {
+                    continue;
+                }
+                if (n % 2 == 0) {
+                    h.append(n == 0 ? "<tr>" : "</tr><tr>");
+                }
+                cell(h, Columns.baselineName(i), Fmt.date(bs) + " – " + Fmt.date(bf) + " (" + Fmt.duration(Columns.baselineDuration(t, i)) + ")");
+                cell(h, "Práce / náklady (ZP " + i + ")", Fmt.duration(Columns.baselineWork(t, i)) + " / " + Fmt.money(Columns.baselineCost(t, i), currency));
+                n++;
+            }
+            if (n > 0) {
+                h.append("</tr>");
+            }
+        }
         h.append("</table>");
         if (columns != null && !columns.custom().isEmpty()) {
             StringBuilder cf = new StringBuilder();
