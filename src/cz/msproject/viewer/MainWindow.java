@@ -12,7 +12,6 @@ import javax.swing.JCheckBox;
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
-import javax.swing.JFileChooser;
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -39,7 +38,6 @@ import javax.swing.SwingWorker;
 import javax.swing.TransferHandler;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.BorderLayout;
@@ -67,7 +65,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.prefs.Preferences;
 
@@ -1071,19 +1068,22 @@ public final class MainWindow extends JFrame {
         if (loading) {
             return;
         }
-        JFileChooser fc = new JFileChooser(prefs.get("lastDir", System.getProperty("user.home")));
-        fc.setDialogTitle(Str.t("Otevřít projekt Microsoft Project"));
-        fc.setAcceptAllFileFilterUsed(true);
-        FileNameExtensionFilter all = new FileNameExtensionFilter(Str.t("Soubory Microsoft Project (*.mpp, *.mpt, *.mpx, *.xml, *.mpd)"), ProjectLoader.EXTENSIONS);
-        fc.addChoosableFileFilter(all);
-        fc.addChoosableFileFilter(new FileNameExtensionFilter("Project (*.mpp, *.mpt)", "mpp", "mpt"));
-        fc.addChoosableFileFilter(new FileNameExtensionFilter("Project XML (*.xml)", "xml"));
-        fc.addChoosableFileFilter(new FileNameExtensionFilter("Project Exchange (*.mpx)", "mpx"));
-        fc.setFileFilter(all);
-        if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            prefs.put("lastDir", fc.getSelectedFile().getParent());
-            open(fc.getSelectedFile().toPath());
+        File f = FileDialogs.open(this, Str.t("Otevřít projekt Microsoft Project"), prefs.get("lastDir", System.getProperty("user.home")), List.of(
+                new FileDialogs.Filter(Str.t("Soubory Microsoft Project (*.mpp, *.mpt, *.mpx, *.xml, *.mpd)"), ProjectLoader.EXTENSIONS),
+                new FileDialogs.Filter("Project (*.mpp, *.mpt)", "mpp", "mpt"),
+                new FileDialogs.Filter("Project XML (*.xml)", "xml"),
+                new FileDialogs.Filter("Project Exchange (*.mpx)", "mpx"),
+                new FileDialogs.Filter("Project Database (*.mpd)", "mpd")));
+        if (f != null) {
+            if (f.getParent() != null) {
+                prefs.put("lastDir", f.getParent());
+            }
+            open(f.toPath());
         }
+    }
+
+    private String exportDir() {
+        return prefs.get("lastExportDir", currentPath == null || currentPath.getParent() == null ? System.getProperty("user.home") : currentPath.getParent().toString());
     }
 
     void reload() {
@@ -1223,19 +1223,9 @@ public final class MainWindow extends JFrame {
             JOptionPane.showMessageDialog(this, Str.t("Nejprve otevřete projekt."), Str.t("Export CSV"), JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        JFileChooser fc = new JFileChooser(prefs.get("lastExportDir", currentPath.getParent() == null ? "." : currentPath.getParent().toString()));
-        fc.setDialogTitle(Str.t("Exportovat zobrazené úkoly do CSV"));
-        fc.setFileFilter(new FileNameExtensionFilter("CSV (*.csv)", "csv"));
-        fc.setSelectedFile(new File(stripExt(currentPath.getFileName().toString()) + ".csv"));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File f = fc.getSelectedFile();
-        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".csv")) {
-            f = new File(f.getPath() + ".csv");
-        }
-        if (f.exists() && JOptionPane.showConfirmDialog(this, Str.t("Soubor ") + f.getName() + Str.t(" už existuje. Přepsat?"), Str.t("Export CSV"),
-                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+        File f = FileDialogs.save(this, Str.t("Exportovat zobrazené úkoly do CSV"), exportDir(),
+                stripExt(currentPath.getFileName().toString()) + ".csv", new FileDialogs.Filter("CSV (*.csv)", "csv"));
+        if (f == null) {
             return;
         }
         try {
@@ -1265,19 +1255,9 @@ public final class MainWindow extends JFrame {
                     Str.t("Uložit PNG"), JOptionPane.WARNING_MESSAGE);
             return;
         }
-        JFileChooser fc = new JFileChooser(prefs.get("lastExportDir", currentPath.getParent() == null ? "." : currentPath.getParent().toString()));
-        fc.setDialogTitle(Str.t("Uložit Ganttův diagram jako PNG"));
-        fc.setFileFilter(new FileNameExtensionFilter("PNG (*.png)", "png"));
-        fc.setSelectedFile(new File(stripExt(currentPath.getFileName().toString()) + ".png"));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File f = fc.getSelectedFile();
-        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".png")) {
-            f = new File(f.getPath() + ".png");
-        }
-        if (f.exists() && JOptionPane.showConfirmDialog(this, Str.t("Soubor ") + f.getName() + Str.t(" už existuje. Přepsat?"), Str.t("Uložit PNG"),
-                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+        File f = FileDialogs.save(this, Str.t("Uložit Ganttův diagram jako PNG"), exportDir(),
+                stripExt(currentPath.getFileName().toString()) + ".png", new FileDialogs.Filter("PNG (*.png)", "png"));
+        if (f == null) {
             return;
         }
         try {
@@ -1295,19 +1275,9 @@ public final class MainWindow extends JFrame {
         if (project == null || img == null) {
             return;
         }
-        JFileChooser fc = new JFileChooser(prefs.get("lastExportDir", currentPath.getParent() == null ? "." : currentPath.getParent().toString()));
-        fc.setDialogTitle(title);
-        fc.setFileFilter(new FileNameExtensionFilter("PNG (*.png)", "png"));
-        fc.setSelectedFile(new File(stripExt(currentPath.getFileName().toString()) + suffix + ".png"));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File f = fc.getSelectedFile();
-        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".png")) {
-            f = new File(f.getPath() + ".png");
-        }
-        if (f.exists() && JOptionPane.showConfirmDialog(this, Str.t("Soubor ") + f.getName() + Str.t(" už existuje. Přepsat?"), title,
-                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+        File f = FileDialogs.save(this, title, exportDir(), stripExt(currentPath.getFileName().toString()) + suffix + ".png",
+                new FileDialogs.Filter("PNG (*.png)", "png"));
+        if (f == null) {
             return;
         }
         try {
@@ -1461,19 +1431,9 @@ public final class MainWindow extends JFrame {
         }
         prefs.putBoolean("printFit", fit.isSelected());
         prefs.putInt("pdfSize", size.getSelectedIndex());
-        JFileChooser fc = new JFileChooser(prefs.get("lastExportDir", currentPath.getParent() == null ? "." : currentPath.getParent().toString()));
-        fc.setDialogTitle(Str.t("Uložit jako PDF"));
-        fc.setFileFilter(new FileNameExtensionFilter("PDF (*.pdf)", "pdf"));
-        fc.setSelectedFile(new File(stripExt(currentPath.getFileName().toString()) + ".pdf"));
-        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
-            return;
-        }
-        File f = fc.getSelectedFile();
-        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".pdf")) {
-            f = new File(f.getPath() + ".pdf");
-        }
-        if (f.exists() && JOptionPane.showConfirmDialog(this, Str.t("Soubor ") + f.getName() + Str.t(" už existuje. Přepsat?"), Str.t("Uložit jako PDF"),
-                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+        File f = FileDialogs.save(this, Str.t("Uložit jako PDF"), exportDir(),
+                stripExt(currentPath.getFileName().toString()) + ".pdf", new FileDialogs.Filter("PDF (*.pdf)", "pdf"));
+        if (f == null) {
             return;
         }
         try {
