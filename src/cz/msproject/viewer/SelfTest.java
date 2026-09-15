@@ -301,6 +301,32 @@ public final class SelfTest {
                 BufferedImage img = w.renderImage();
                 check(img.getWidth() > 100 && img.getHeight() > Theme.HEADER, "Prázdný obrázek");
                 ImageIO.write(img, "png", out.toFile());
+                // tisk/PDF: stránkování a zápis PDF
+                BufferedImage img2 = w.renderImage(2.0);
+                check(img2.getWidth() >= img.getWidth() * 2 - 2 && img2.getHeight() >= img.getHeight() * 2 - 2, "Obrázek 2× nemá dvojnásobné rozměry");
+                PrintLayout fitLayout = new PrintLayout(img2, 2.0, w.tree.visible().size(), true, "test");
+                PrintLayout oneToOne = new PrintLayout(img2, 2.0, w.tree.visible().size(), false, "test");
+                check(fitLayout.pageCount(770, 520) >= 1, "Stránkování nedalo žádnou stránku");
+                check(oneToOne.pageCount(770, 520) >= fitLayout.pageCount(770, 520), "Měřítko 1:1 má méně stránek než přizpůsobení");
+                PrintLayout tall = new PrintLayout(img2, 2.0, 5000, true, "test");
+                check(tall.pageCount(770, 520) > 1, "5000 řádků se vešlo na jednu stránku");
+                BufferedImage pageImg = fitLayout.renderPage(0, 770, 520, 72);
+                check(pageImg.getWidth() == 770 && pageImg.getHeight() == 520, "Stránka má špatné rozměry");
+                Path pdf = Files.createTempFile("m3k-print-", ".pdf");
+                try {
+                    int pages = w.writePdf(pdf, true, 0);
+                    byte[] bytes = Files.readAllBytes(pdf);
+                    check(pages >= 1 && bytes.length > 1000, "PDF je prázdné");
+                    String head = new String(bytes, 0, 8, StandardCharsets.ISO_8859_1);
+                    String tail = new String(bytes, bytes.length - 6, 6, StandardCharsets.ISO_8859_1);
+                    check(head.startsWith("%PDF-1.4") && tail.contains("%%EOF"), "PDF nemá hlavičku/patičku");
+                    String all = new String(bytes, StandardCharsets.ISO_8859_1);
+                    check(all.contains("/Count " + pages + " ") && all.contains("/Type /Page ") && all.contains("startxref"), "PDF nemá strukturu stránek");
+                    Path keep = out.resolveSibling(stripExt(out.getFileName().toString()) + ".pdf");
+                    Files.copy(pdf, keep, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } finally {
+                    Files.deleteIfExists(pdf);
+                }
                 BufferedImage window = new BufferedImage(w.getWidth(), w.getHeight(), BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g = window.createGraphics();
                 w.getRootPane().printAll(g);

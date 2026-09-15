@@ -274,6 +274,8 @@ public final class MainWindow extends JFrame {
         file.addSeparator();
         file.add(item("Exportovat zobrazené úkoly do CSV…", KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK), this::exportCsv));
         file.add(item("Uložit Ganttův diagram jako PNG…", KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::exportPng));
+        file.add(item("Uložit jako PDF…", KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::exportPdf));
+        file.add(item("Tisk…", KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK), this::printChart));
         file.addSeparator();
         file.add(item("Konec", KeyStroke.getKeyStroke(KeyEvent.VK_Q, InputEvent.CTRL_DOWN_MASK), () -> {
             saveWindowState();
@@ -1026,18 +1028,26 @@ public final class MainWindow extends JFrame {
 
     /** Tabulka + diagram v plné velikosti jako jeden obrázek. */
     BufferedImage renderImage() {
-        BufferedImage chartImg = gantt.renderImage();
+        return renderImage(1.0);
+    }
+
+    /** Tabulka + diagram jako jeden obrázek v zadaném měřítku (2 = dvojnásobné rozlišení). */
+    BufferedImage renderImage(double scale) {
+        BufferedImage chartImg = gantt.renderImage(scale);
         int tableWidth = table.getPreferredSize().width;
         int rowsHeight = Math.max(1, tree.visible().size() * Theme.ROW);
         int h = Theme.HEADER + rowsHeight;
-        BufferedImage img = new BufferedImage(tableWidth + chartImg.getWidth(), Math.max(h, chartImg.getHeight()), BufferedImage.TYPE_INT_RGB);
+        int tw = (int) Math.ceil(tableWidth * scale);
+        BufferedImage img = new BufferedImage(tw + chartImg.getWidth(), Math.max((int) Math.ceil(h * scale), chartImg.getHeight()), BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setColor(Color.WHITE);
         g.fillRect(0, 0, img.getWidth(), img.getHeight());
+        g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         Rectangle headerBounds = table.getTableHeader().getBounds();
         Rectangle tableBounds = table.getBounds();
         table.getTableHeader().setBounds(0, 0, tableWidth, Theme.HEADER);
         table.setBounds(0, 0, tableWidth, rowsHeight);
+        g.scale(scale, scale);
         g.setClip(0, 0, tableWidth, Theme.HEADER);
         table.getTableHeader().paint(g);
         g.translate(0, Theme.HEADER);
@@ -1047,11 +1057,159 @@ public final class MainWindow extends JFrame {
         table.getTableHeader().setBounds(headerBounds);
         table.setBounds(tableBounds);
         g.setClip(null);
-        g.drawImage(chartImg, tableWidth, 0, null);
+        g.scale(1 / scale, 1 / scale);
+        g.drawImage(chartImg, tw, 0, null);
         g.setColor(Theme.GRID_STRONG);
-        g.drawLine(tableWidth, 0, tableWidth, img.getHeight());
+        g.drawLine(tw, 0, tw, img.getHeight());
         g.dispose();
         return img;
+    }
+
+    // ---------------------------------------------------------------- tisk a PDF
+
+    private static final double A4_W = 595.28;
+    private static final double A4_H = 841.89;
+    private static final double A3_W = 841.89;
+    private static final double A3_H = 1190.55;
+
+    private boolean checkPrintable(String title) {
+        if (project == null) {
+            JOptionPane.showMessageDialog(this, "Nejprve otevřete projekt.", title, JOptionPane.INFORMATION_MESSAGE);
+            return false;
+        }
+        if (tree.visible().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Není co tisknout – filtru neodpovídá žádný úkol.", title, JOptionPane.INFORMATION_MESSAGE);
+            return false;
+        }
+        return true;
+    }
+
+    /** Obrázek pro tisk: dvojnásobné rozlišení, ale s ochranou proti obřím obrázkům. */
+    private PrintLayout printLayout(boolean fitWidth) {
+        Dimension chartSize = gantt.getChart().getPreferredSize();
+        long w = (long) table.getPreferredSize().width + chartSize.width;
+        long h = (long) Theme.HEADER + Math.max(1, tree.visible().size() * Theme.ROW);
+        double scale = w * h * 4 > 40_000_000L ? 1.0 : 2.0;
+        if (w * h > 60_000_000L) {
+            return null;
+        }
+        String title = currentPath.getFileName() + "   —   " + Fmt.text(project.getProjectProperties().getProjectTitle());
+        return new PrintLayout(renderImage(scale), scale, tree.visible().size(), fitWidth, title);
+    }
+
+    private static JPanel printOptions(JCheckBox fit) {
+        JPanel p = new JPanel(new java.awt.GridLayout(0, 1, 0, 4));
+        fit.setFont(Theme.BASE);
+        p.add(fit);
+        JLabel hint = new JLabel("<html><span style='color:#64748b'>Tiskne se to, co je zobrazeno: viditelné řádky, zvolené sloupce a měřítko diagramu.<br>"
+                + "Hlavička tabulky a časová osa se opakují na každé stránce.</span></html>");
+        hint.setFont(Theme.SMALL);
+        p.add(hint);
+        return p;
+    }
+
+    private void printChart() {
+        if (!checkPrintable("Tisk")) {
+            return;
+        }
+        JCheckBox fit = new JCheckBox("Přizpůsobit na šířku stránky (jinak měřítko 1:1 a více stránek vedle sebe)", prefs.getBoolean("printFit", true));
+        if (JOptionPane.showConfirmDialog(this, printOptions(fit), "Tisk", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
+            return;
+        }
+        prefs.putBoolean("printFit", fit.isSelected());
+        PrintLayout layout = printLayout(fit.isSelected());
+        if (layout == null) {
+            JOptionPane.showMessageDialog(this, "Diagram je pro tisk příliš velký. Zmenšete měřítko nebo sbalte část osnovy.", "Tisk", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        java.awt.print.PrinterJob job = java.awt.print.PrinterJob.getPrinterJob();
+        job.setJobName(APP_NAME + " – " + currentPath.getFileName());
+        java.awt.print.PageFormat pf = job.defaultPage();
+        pf.setOrientation(java.awt.print.PageFormat.LANDSCAPE);
+        job.setPrintable(layout, pf);
+        if (job.printDialog()) {
+            try {
+                job.print();
+                status.setText("Odesláno na tiskárnu: " + job.getPrintService().getName());
+            } catch (java.awt.print.PrinterException ex) {
+                showError("Tisk se nezdařil.", ex);
+            }
+        }
+    }
+
+    private void exportPdf() {
+        if (!checkPrintable("Uložit jako PDF")) {
+            return;
+        }
+        JCheckBox fit = new JCheckBox("Přizpůsobit na šířku stránky (jinak měřítko 1:1 a více stránek vedle sebe)", prefs.getBoolean("printFit", true));
+        JComboBox<String> size = new JComboBox<>(new String[]{"A4 na šířku", "A4 na výšku", "A3 na šířku", "A3 na výšku"});
+        size.setSelectedIndex(prefs.getInt("pdfSize", 0));
+        size.setFont(Theme.BASE);
+        JPanel p = printOptions(fit);
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        row.add(label("Stránka:"));
+        row.add(size);
+        p.add(row, 1);
+        if (JOptionPane.showConfirmDialog(this, p, "Uložit jako PDF", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) {
+            return;
+        }
+        prefs.putBoolean("printFit", fit.isSelected());
+        prefs.putInt("pdfSize", size.getSelectedIndex());
+        JFileChooser fc = new JFileChooser(prefs.get("lastExportDir", currentPath.getParent() == null ? "." : currentPath.getParent().toString()));
+        fc.setDialogTitle("Uložit jako PDF");
+        fc.setFileFilter(new FileNameExtensionFilter("PDF (*.pdf)", "pdf"));
+        fc.setSelectedFile(new File(stripExt(currentPath.getFileName().toString()) + ".pdf"));
+        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File f = fc.getSelectedFile();
+        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            f = new File(f.getPath() + ".pdf");
+        }
+        if (f.exists() && JOptionPane.showConfirmDialog(this, "Soubor " + f.getName() + " už existuje. Přepsat?", "Uložit jako PDF",
+                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            int pages = writePdf(f.toPath(), fit.isSelected(), size.getSelectedIndex());
+            prefs.put("lastExportDir", f.getParent());
+            status.setText("PDF uloženo do " + f.getAbsolutePath() + " (" + pages + " str.)");
+        } catch (Exception ex) {
+            showError("Uložení PDF se nezdařilo.", ex);
+        }
+    }
+
+    /** Zapíše PDF; vrací počet stránek. {@code sizeIndex}: 0 A4 šířka, 1 A4 výška, 2 A3 šířka, 3 A3 výška. */
+    int writePdf(Path target, boolean fitWidth, int sizeIndex) throws java.io.IOException {
+        PrintLayout layout = printLayout(fitWidth);
+        if (layout == null) {
+            throw new java.io.IOException("Diagram je příliš velký – zmenšete měřítko nebo sbalte část osnovy.");
+        }
+        double pw = sizeIndex >= 2 ? A3_H : A4_H;
+        double ph = sizeIndex >= 2 ? A3_W : A4_W;
+        if (sizeIndex % 2 == 1) {
+            double t = pw;
+            pw = ph;
+            ph = t;
+        }
+        double margin = 36;
+        double cw = pw - 2 * margin;
+        double ch = ph - 2 * margin;
+        int pages = layout.pageCount(cw, ch);
+        final double fpw = pw;
+        final double fph = ph;
+        PdfWriter.write(target, pages, i -> {
+            BufferedImage page = new BufferedImage((int) Math.round(fpw * 150 / 72), (int) Math.round(fph * 150 / 72), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = page.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, page.getWidth(), page.getHeight());
+            g.scale(150 / 72.0, 150 / 72.0);
+            g.translate(margin, margin);
+            layout.paintPage(g, i, cw, ch);
+            g.dispose();
+            return page;
+        }, pw, ph, currentPath.getFileName().toString());
+        return pages;
     }
 
     private static String stripExt(String name) {

@@ -864,13 +864,21 @@ public final class GanttPanel extends javax.swing.JPanel {
 
     /** Vykreslí celý diagram (hlavička + plátno) do obrázku. */
     public java.awt.image.BufferedImage renderImage() {
+        return renderImage(1.0);
+    }
+
+    /** Vykreslí celý diagram v zadaném měřítku (2 = dvojnásobné rozlišení pro tisk/PDF). */
+    public java.awt.image.BufferedImage renderImage(double scale) {
         Dimension d = chart.getPreferredSize();
         int w = Math.max(1, d.width);
         int h = Math.max(1, d.height) + Theme.HEADER;
-        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        int iw = (int) Math.ceil(w * scale);
+        int ih = (int) Math.ceil(h * scale);
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(iw, ih, java.awt.image.BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setColor(Color.WHITE);
-        g.fillRect(0, 0, w, h);
+        g.fillRect(0, 0, iw, ih);
+        g.scale(scale, scale);
         Rectangle savedH = header.getBounds();
         Rectangle savedC = chart.getBounds();
         header.setBounds(0, 0, w, Theme.HEADER);
