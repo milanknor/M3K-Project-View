@@ -87,7 +87,9 @@ Tichá instalace: `M3K-Project-View-0.2.0-Setup.exe /VERYSILENT /TASKS=desktopic
 ## Sestavení ze zdrojáků
 
 Vyžaduje JDK 21 (Eclipse Temurin) a Python s Pillow (jen pro ikonu). Knihovna
-MPXJ 16.7.0 a její závislosti jsou ve složce `lib\`.
+MPXJ 16.7.0, Apache POI 5.5.1 a další závislosti jsou ve složce `lib\` (oficiální
+artefakty z Maven Central, ověřené kontrolním součtem SHA‑1; aktuální verze vždy
+vypisuje `licenses\THIRD-PARTY.txt` v hotovém balíčku).
 
 ```powershell
 # kompilace + testy (build\viewer.jar)
