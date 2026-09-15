@@ -76,6 +76,17 @@ public final class TaskTree {
     private LocalDate today = LocalDate.now();
     private int matchCount;
     private Comparator<Row> order;
+    private java.util.function.Predicate<Row> extra;
+
+    /** Rozšířený filtr (null = žádný); kombinuje se s hledáním a základním filtrem. */
+    public void setExtra(java.util.function.Predicate<Row> p) {
+        extra = p;
+        rebuild();
+    }
+
+    public boolean hasExtra() {
+        return extra != null;
+    }
 
     public void clear() {
         roots.clear();
@@ -170,7 +181,7 @@ public final class TaskTree {
     }
 
     public boolean isFiltering() {
-        return !query.isEmpty() || filter != Filter.ALL;
+        return !query.isEmpty() || filter != Filter.ALL || extra != null;
     }
 
     public boolean isCollapsed(Row r) {
@@ -308,6 +319,9 @@ public final class TaskTree {
 
     private boolean matches(Row r) {
         Task t = r.task;
+        if (extra != null && !extra.test(r)) {
+            return false;
+        }
         if (!query.isEmpty()) {
             String hay = (Fmt.text(t.getName()) + " " + Fmt.text(t.getID()) + " " + Fmt.resources(t) + " "
                     + Fmt.text(t.getWBS()) + " " + Fmt.text(t.getNotes())).toLowerCase(Locale.ROOT);

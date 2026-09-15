@@ -147,6 +147,17 @@ public final class ProjectInfoPanel extends JPanel {
             cals.append(c.getName());
         }
         row(h, "Kalendáře", Fmt.orDash(cals.toString()));
+        StringBuilder subs = new StringBuilder();
+        for (Task t : p.getTasks()) {
+            if (t.getSubprojectFile() != null && !t.getSubprojectFile().isBlank()) {
+                subs.append(subs.length() > 0 ? "<br>" : "").append(Fmt.html(Fmt.text(t.getID()))).append(" · ")
+                        .append(Fmt.html(Fmt.text(t.getName()))).append(" → ").append(Fmt.html(t.getSubprojectFile()));
+            }
+        }
+        if (subs.length() > 0) {
+            section(h, "Vložené podprojekty (otevřou se samostatně přes odkaz v detailu úkolu)");
+            h.append("<tr><td colspan='2'>").append(subs).append("</td></tr>");
+        }
         h.append("</table></body></html>");
         pane.setText(h.toString());
         pane.setCaretPosition(0);

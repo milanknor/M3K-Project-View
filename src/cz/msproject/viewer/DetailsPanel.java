@@ -35,12 +35,24 @@ public final class DetailsPanel extends JPanel {
     private final List<Task> linkTasks = new ArrayList<>();
     private String currency = "";
     private Consumer<Task> navigator;
+    private Consumer<String> subprojectOpener;
     private Columns columns;
+
+    /** Volá se s cestou k vloženému podprojektu po kliknutí na odkaz v detailu. */
+    public void setSubprojectOpener(Consumer<String> opener) {
+        subprojectOpener = opener;
+    }
 
     public DetailsPanel() {
         super(new BorderLayout());
         general.setEditable(false);
         general.setFont(Theme.BASE);
+        general.addHyperlinkListener(e -> {
+            if (e.getEventType() == javax.swing.event.HyperlinkEvent.EventType.ACTIVATED && subprojectOpener != null
+                    && e.getDescription() != null && e.getDescription().startsWith("subproject:")) {
+                subprojectOpener.accept(e.getDescription().substring("subproject:".length()));
+            }
+        });
         general.putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE);
         general.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
         notes.setEditable(false);
@@ -162,6 +174,12 @@ public final class DetailsPanel extends JPanel {
             cell(h, "Odkaz", Fmt.orDash(t.getHyperlink()));
             cell(h, "Kontakt", Fmt.orDash(t.getContact()));
             h.append("</tr>");
+        }
+        if (t.getSubprojectFile() != null && !t.getSubprojectFile().isBlank()) {
+            h.append("<tr><td style='color:#64748b;padding-right:4px'>Podprojekt:</td><td colspan='7'><b>")
+                    .append(Fmt.html(t.getSubprojectFile())).append("</b> &nbsp; <a href='subproject:")
+                    .append(Fmt.html(t.getSubprojectFile())).append("'>otevřít v novém okně</a>")
+                    .append(t.getSubprojectReadOnly() ? " <span style='color:#64748b'>(jen pro čtení)</span>" : "").append("</td></tr>");
         }
         if (columns != null && columns.baselines().size() > 1) {
             int n = 0;

@@ -144,6 +144,53 @@ public final class SelfTest {
             tree.setQuery("");
             tree.setOrder(null);
 
+            // rozšířený filtr: zdroj, období, procenta, text ve sloupci; serializace
+            String firstResource = null;
+            for (org.mpxj.Resource res : f.getResources()) {
+                if (res.getName() != null && !res.getName().isBlank() && !res.getTaskAssignments().isEmpty()) {
+                    firstResource = res.getName();
+                    break;
+                }
+            }
+            if (firstResource != null) {
+                TaskFilter byRes = new TaskFilter("", firstResource, null, null, null, null, "", "", true);
+                tree.setExtra(byRes.predicate(columns));
+                check(tree.hasExtra() && tree.isFiltering(), "Rozšířený filtr se nezapnul");
+                for (TaskTree.Row r : tree.visible()) {
+                    if (!r.isSummary()) {
+                        check(Fmt.resources(r.task).toLowerCase(java.util.Locale.ROOT).contains(firstResource.toLowerCase(java.util.Locale.ROOT)),
+                                "Filtr podle zdroje propustil úkol bez zdroje: " + r.task.getName());
+                    }
+                }
+                check(tree.matchCount() > 0, "Filtr podle zdroje s přiřazeními nenašel nic");
+            }
+            TaskFilter pct = new TaskFilter("", "", null, null, 0, 0, "", "", true);
+            tree.setExtra(pct.predicate(columns));
+            for (TaskTree.Row r : tree.visible()) {
+                if (!r.isSummary()) {
+                    double v = r.task.getPercentageComplete() == null ? 0 : r.task.getPercentageComplete().doubleValue();
+                    check(v == 0, "Filtr 0–0 % propustil rozpracovaný úkol");
+                }
+            }
+            TaskFilter range = new TaskFilter("", "", java.time.LocalDate.of(1900, 1, 1), java.time.LocalDate.of(2200, 12, 31), null, null, "", "", false);
+            tree.setExtra(range.predicate(columns));
+            int datedTasks = 0;
+            for (TaskTree.Row r : tree.all()) {
+                if (r.task.getStart() != null || r.task.getFinish() != null) {
+                    datedTasks++;
+                }
+            }
+            check(tree.matchCount() == datedTasks, "Filtr období 1900–2200 nevrátil všechny úkoly s daty: " + tree.matchCount() + " ≠ " + datedTasks);
+            TaskFilter textF = new TaskFilter("Test", "", null, null, null, null, "name", "THIS_SHOULD_NOT_MATCH", false);
+            tree.setExtra(textF.predicate(columns));
+            check(tree.visible().isEmpty(), "Filtr textu ve sloupci propustil řádky");
+            TaskFilter round = TaskFilter.deserialize(textF.serialize());
+            check(round != null && round.equals(textF), "Serializace filtru není vratná");
+            check(TaskFilter.EMPTY.predicate(columns) == null, "Prázdný filtr vrací predikát");
+            check(FilterDialog.parseDate("15. 9. 2026").equals(java.time.LocalDate.of(2026, 9, 15)) && FilterDialog.parseDate("2026-09-15") != null, "Parsování data selhalo");
+            tree.setExtra(null);
+            check(!tree.hasExtra() && tree.visible().size() == visibleAll, "Zrušení rozšířeného filtru nevrátilo seznam");
+
             tree.setQuery("THIS_SHOULD_NOT_MATCH_73423");
             check(tree.visible().isEmpty(), "Hledání nefiltruje");
             tree.setQuery("");
@@ -381,7 +428,7 @@ public final class SelfTest {
                     w.resources.table().setRowSelectionInterval(0, 0);
                 }
                 // záložka Vytížení: vykreslit do PNG
-                w.tabs.setSelectedIndex(2);
+                w.tabs.setSelectedIndex(3);
                 w.usage.setPeriod(ResourceUsagePanel.Period.WEEKS);
                 if (w.usage.table().getRowCount() > 0) {
                     w.usage.table().setRowSelectionInterval(0, 0);
@@ -392,6 +439,22 @@ public final class SelfTest {
                 w.getRootPane().printAll(ug);
                 ug.dispose();
                 ImageIO.write(usageImg, "png", out.resolveSibling(stripExt(out.getFileName().toString()) + "-usage.png").toFile());
+                // Časová osa a Kalendáře: vykreslit a ověřit obsah
+                w.timeline.rebuild();
+                BufferedImage tl = w.timeline.renderImage(1200, 1);
+                check(tl.getWidth() == 1200 && tl.getHeight() > 60, "Časová osa má špatné rozměry");
+                ImageIO.write(tl, "png", out.resolveSibling(stripExt(out.getFileName().toString()) + "-timeline.png").toFile());
+                check(w.calendars.calendarList().getModel().getSize() >= (project.getCalendars().isEmpty() ? 0 : 1), "Seznam kalendářů je prázdný");
+                if (w.calendars.calendarList().getModel().getSize() > 0) {
+                    check(w.calendars.current() != null, "Kalendář není vybrán");
+                }
+                w.tabs.setSelectedIndex(4);
+                w.validate();
+                BufferedImage calImg = new BufferedImage(w.getWidth(), w.getHeight(), BufferedImage.TYPE_INT_RGB);
+                java.awt.Graphics2D cg = calImg.createGraphics();
+                w.getRootPane().printAll(cg);
+                cg.dispose();
+                ImageIO.write(calImg, "png", out.resolveSibling(stripExt(out.getFileName().toString()) + "-calendar.png").toFile());
                 w.tabs.setSelectedIndex(0);
                 w.validate();
                 List<LicenseDialog.Entry> licenses = LicenseDialog.entries();

@@ -74,6 +74,9 @@ public final class Labels {
         if (!t.getActive()) {
             return "Neaktivní úkol";
         }
+        if (t.getSubprojectFile() != null && !t.getSubprojectFile().isBlank()) {
+            return "Vložený podprojekt";
+        }
         if (r.isSummary()) {
             return "Souhrnný úkol";
         }

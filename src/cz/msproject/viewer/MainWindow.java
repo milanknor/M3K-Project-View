@@ -93,9 +93,13 @@ public final class MainWindow extends JFrame {
     final DetailsPanel details = new DetailsPanel();
     final ResourcePanel resources = new ResourcePanel();
     final ResourceUsagePanel usage = new ResourceUsagePanel();
+    final CalendarPanel calendars = new CalendarPanel();
+    final TimelinePanel timeline = new TimelinePanel();
     final ProjectInfoPanel info = new ProjectInfoPanel();
     final JTextField search = new JTextField(18);
     final JComboBox<TaskTree.Filter> filterBox = new JComboBox<>(TaskTree.Filter.values());
+    final JButton extraFilterButton = new JButton("Filtr…");
+    TaskFilter extraFilter;
     final JComboBox<String> levelBox = new JComboBox<>();
     final JComboBox<GanttPanel.Zoom> zoomBox = new JComboBox<>(GanttPanel.Zoom.values());
     final JCheckBox linksBox = new JCheckBox("Vazby", true);
@@ -244,13 +248,18 @@ public final class MainWindow extends JFrame {
         verticalSplit.setContinuousLayout(true);
 
         details.setNavigator(this::goToTask);
+        details.setSubprojectOpener(this::openSubproject);
         resources.setNavigator(this::goToTask);
         usage.setNavigator(this::goToTask);
+        timeline.setNavigator(this::goToTask);
+        timeline.setExporter(img -> savePng(img, "-casova-osa", "Uložit časovou osu jako PNG"));
 
         tabs.setFont(Theme.BASE);
         tabs.addTab("Ganttův diagram", verticalSplit);
+        tabs.addTab("Časová osa", timeline);
         tabs.addTab("Zdroje", resources);
         tabs.addTab("Vytížení", usage);
+        tabs.addTab("Kalendáře", calendars);
         tabs.addTab("Projekt", info);
 
         setJMenuBar(buildMenu());
@@ -260,7 +269,8 @@ public final class MainWindow extends JFrame {
         add(center, BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
 
-        installDropHandler(getRootPane(), table, gantt.getChart(), gantt.getHeader(), resources.table(), usage.table(), usage, details, info, tabs, start);
+        installDropHandler(getRootPane(), table, gantt.getChart(), gantt.getHeader(), resources.table(), usage.table(), usage, calendars, calendars.calendarList(),
+                timeline, details, info, tabs, start);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -330,6 +340,34 @@ public final class MainWindow extends JFrame {
             tree.collapseAll();
             refresh();
         }));
+        view.add(item("Rozšířený filtr…", KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), this::showFilterDialog));
+        JMenu savedFilters = new JMenu("Uložené filtry");
+        savedFilters.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                savedFilters.removeAll();
+                List<TaskFilter> list = FilterDialog.savedFilters(prefs);
+                if (list.isEmpty()) {
+                    JMenuItem none = new JMenuItem("(žádné – uložte filtr v dialogu Rozšířený filtr)");
+                    none.setEnabled(false);
+                    savedFilters.add(none);
+                }
+                for (TaskFilter f : list) {
+                    savedFilters.add(item(f.name() + "   —   " + f.describe(), null, () -> applyExtraFilter(f)));
+                }
+                savedFilters.addSeparator();
+                savedFilters.add(item("Zrušit rozšířený filtr", null, () -> applyExtraFilter(null)));
+            }
+
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {
+            }
+        });
+        view.add(savedFilters);
         view.add(item("Sloupce tabulky…", null, () -> showColumnChooser(0, Theme.HEADER)));
         view.add(item("Zrušit řazení", null, () -> {
             sortColumn = null;
@@ -465,6 +503,10 @@ public final class MainWindow extends JFrame {
             }
         });
         bar.add(filterBox);
+        extraFilterButton.setFont(Theme.BASE);
+        extraFilterButton.setToolTipText("Rozšířený filtr: zdroj, období, % dokončení, text ve sloupci; filtry lze uložit");
+        extraFilterButton.addActionListener(e -> showFilterDialog());
+        bar.add(extraFilterButton);
         bar.add(Box.createHorizontalStrut(8));
         bar.add(label("Osnova:"));
         levelBox.setFont(Theme.BASE);
@@ -769,6 +811,60 @@ public final class MainWindow extends JFrame {
         table.getTableHeader().repaint();
     }
 
+    // ---------------------------------------------------------------- rozšířený filtr
+
+    private void showFilterDialog() {
+        if (project == null) {
+            JOptionPane.showMessageDialog(this, "Nejprve otevřete projekt.", "Rozšířený filtr", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        FilterDialog d = new FilterDialog(this, prefs, project, columns, extraFilter);
+        d.setVisible(true);
+        if (d.result() != null) {
+            applyExtraFilter(d.result());
+        }
+    }
+
+    void applyExtraFilter(TaskFilter f) {
+        extraFilter = f == null || f.isEmpty() ? null : f;
+        tree.setExtra(extraFilter == null ? null : extraFilter.predicate(columns));
+        extraFilterButton.setText(extraFilter == null ? "Filtr…" : "Filtr ●");
+        extraFilterButton.setForeground(extraFilter == null ? Theme.INK : Theme.HIGHLIGHT);
+        refresh();
+        status.setText(extraFilter == null ? "Rozšířený filtr zrušen." : "Rozšířený filtr: " + extraFilter.describe() + "   (" + tree.matchCount() + " shod)");
+    }
+
+    /** Otevře vložený podprojekt v novém okně; cesta se hledá absolutně i relativně k otevřenému souboru. */
+    void openSubproject(String ref) {
+        if (ref == null || ref.isBlank()) {
+            return;
+        }
+        List<Path> candidates = new ArrayList<>();
+        try {
+            String clean = ref.strip();
+            if (clean.startsWith("<>\\")) {
+                clean = clean.substring(3);
+            }
+            Path p = Path.of(clean);
+            candidates.add(p);
+            if (currentPath != null && currentPath.getParent() != null) {
+                candidates.add(currentPath.getParent().resolve(clean));
+                candidates.add(currentPath.getParent().resolve(p.getFileName()));
+            }
+        } catch (RuntimeException ex) {
+            showError("Cesta k podprojektu je neplatná: " + ref, null);
+            return;
+        }
+        for (Path c : candidates) {
+            if (Files.isRegularFile(c)) {
+                newWindow().open(c);
+                return;
+            }
+        }
+        JOptionPane.showMessageDialog(this, "Soubor podprojektu se nepodařilo najít:\n" + ref
+                + "\n\nHledáno i ve složce otevřeného souboru. Otevřete ho ručně přes Soubor → Otevřít.", "Podprojekt", JOptionPane.WARNING_MESSAGE);
+    }
+
     // ---------------------------------------------------------------- akce
 
     private java.util.Optional<TaskTree.Row> selectedRow() {
@@ -826,6 +922,9 @@ public final class MainWindow extends JFrame {
             suppressEvents = false;
             tree.setQuery("");
             tree.setFilter(TaskTree.Filter.ALL);
+            if (extraFilter != null) {
+                applyExtraFilter(null);
+            }
         }
         tree.reveal(row);
         refresh();
@@ -1013,6 +1112,10 @@ public final class MainWindow extends JFrame {
         tree.setMaxDepth(0);
         sortColumn = null;
         tree.setOrder(null);
+        extraFilter = null;
+        tree.setExtra(null);
+        extraFilterButton.setText("Filtr…");
+        extraFilterButton.setForeground(Theme.INK);
         tree.load(file);
         columns.setProject(file);
         table.clearSelection();
@@ -1023,6 +1126,8 @@ public final class MainWindow extends JFrame {
         details.show(null);
         resources.setProject(file);
         usage.setProject(file);
+        calendars.setProject(file);
+        timeline.setProject(file, tree);
         info.setProject(file, path, tree);
         updateLevelBox();
         String name = path.getFileName().toString();
@@ -1121,6 +1226,35 @@ public final class MainWindow extends JFrame {
             ImageIO.write(img, "png", f);
             prefs.put("lastExportDir", f.getParent());
             status.setText("Diagram uložen do " + f.getAbsolutePath() + " (" + img.getWidth() + " × " + img.getHeight() + " px)");
+        } catch (Exception ex) {
+            showError("Uložení obrázku se nezdařilo.", ex);
+        }
+    }
+
+    /** Uloží hotový obrázek jako PNG (dialog s výběrem souboru). */
+    void savePng(BufferedImage img, String suffix, String title) {
+        if (project == null || img == null) {
+            return;
+        }
+        JFileChooser fc = new JFileChooser(prefs.get("lastExportDir", currentPath.getParent() == null ? "." : currentPath.getParent().toString()));
+        fc.setDialogTitle(title);
+        fc.setFileFilter(new FileNameExtensionFilter("PNG (*.png)", "png"));
+        fc.setSelectedFile(new File(stripExt(currentPath.getFileName().toString()) + suffix + ".png"));
+        if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File f = fc.getSelectedFile();
+        if (!f.getName().toLowerCase(Locale.ROOT).endsWith(".png")) {
+            f = new File(f.getPath() + ".png");
+        }
+        if (f.exists() && JOptionPane.showConfirmDialog(this, "Soubor " + f.getName() + " už existuje. Přepsat?", title,
+                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            ImageIO.write(img, "png", f);
+            prefs.put("lastExportDir", f.getParent());
+            status.setText("Uloženo do " + f.getAbsolutePath() + " (" + img.getWidth() + " × " + img.getHeight() + " px)");
         } catch (Exception ex) {
             showError("Uložení obrázku se nezdařilo.", ex);
         }
