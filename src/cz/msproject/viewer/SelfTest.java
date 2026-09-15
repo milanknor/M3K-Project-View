@@ -190,6 +190,26 @@ public final class SelfTest {
             } finally {
                 Files.deleteIfExists(csv);
             }
+            // vytížení zdrojů: konzistentní rozměry, kapacita jen u pracovních zdrojů, součet práce ≥ 0
+            for (ResourceUsagePanel.Period per : ResourceUsagePanel.Period.values()) {
+                ResourceUsagePanel.Usage u = ResourceUsagePanel.compute(f, per);
+                check(u.headers.length == u.buckets.size(), "Vytížení: hlavičky nesedí s obdobími");
+                check(u.names.size() == u.work.size() && u.names.size() == u.capacity.size(), "Vytížení: řádky nesedí");
+                for (int r = 0; r < u.names.size(); r++) {
+                    check(u.work.get(r).length == u.buckets.size(), "Vytížení: špatný počet hodnot");
+                    for (double v : u.work.get(r)) {
+                        check(v >= 0 && !Double.isNaN(v), "Vytížení: záporná/NaN práce");
+                    }
+                }
+                if (!f.getResourceAssignments().isEmpty() && u.buckets.isEmpty()) {
+                    boolean anyDates = f.getResourceAssignments().stream().anyMatch(a -> a.getResource() != null && a.getTask() != null
+                            && (a.getStart() != null || a.getTask().getStart() != null) && (a.getFinish() != null || a.getTask().getFinish() != null));
+                    check(!anyDates, "Vytížení: přiřazení s daty, ale žádná období");
+                }
+                if (per == ResourceUsagePanel.Period.WEEKS && u.overCells > 0) {
+                    System.out.println("  vytížení: " + u.names.size() + " zdrojů, " + u.buckets.size() + " týdnů, přetížených období " + u.overCells);
+                }
+            }
             total += tree.size();
             StringBuilder names = new StringBuilder();
             for (org.mpxj.Resource r : f.getResources()) {
@@ -343,6 +363,20 @@ public final class SelfTest {
                 if (w.resources.table().getRowCount() > 0) {
                     w.resources.table().setRowSelectionInterval(0, 0);
                 }
+                // záložka Vytížení: vykreslit do PNG
+                w.tabs.setSelectedIndex(2);
+                w.usage.setPeriod(ResourceUsagePanel.Period.WEEKS);
+                if (w.usage.table().getRowCount() > 0) {
+                    w.usage.table().setRowSelectionInterval(0, 0);
+                }
+                w.validate();
+                BufferedImage usageImg = new BufferedImage(w.getWidth(), w.getHeight(), BufferedImage.TYPE_INT_RGB);
+                java.awt.Graphics2D ug = usageImg.createGraphics();
+                w.getRootPane().printAll(ug);
+                ug.dispose();
+                ImageIO.write(usageImg, "png", out.resolveSibling(stripExt(out.getFileName().toString()) + "-usage.png").toFile());
+                w.tabs.setSelectedIndex(0);
+                w.validate();
                 List<LicenseDialog.Entry> licenses = LicenseDialog.entries();
                 check(licenses.size() >= 20, "Málo licenčních položek: " + licenses.size());
                 check(licenses.get(0).resource().equals("LICENSE.txt") && LicenseDialog.text("LICENSE.txt").contains("freeware")

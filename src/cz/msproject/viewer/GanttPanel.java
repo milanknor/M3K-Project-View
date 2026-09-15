@@ -400,6 +400,31 @@ public final class GanttPanel extends javax.swing.JPanel {
         return list;
     }
 
+    /** Omezení jiné než „co nejdříve / co nejpozději“. */
+    static boolean isRealConstraint(Task t) {
+        org.mpxj.ConstraintType c = t.getConstraintType();
+        return c != null && c != org.mpxj.ConstraintType.AS_SOON_AS_POSSIBLE && c != org.mpxj.ConstraintType.AS_LATE_AS_POSSIBLE;
+    }
+
+    /** Části rozděleného úkolu (prázdný seznam = nerozdělený nebo neznámý). */
+    static List<org.mpxj.LocalDateTimeRange> splits(Task t) {
+        try {
+            List<org.mpxj.LocalDateTimeRange> s = t.getWorkSplits();
+            if (s == null || s.size() < 2) {
+                return List.of();
+            }
+            List<org.mpxj.LocalDateTimeRange> ok = new ArrayList<>();
+            for (org.mpxj.LocalDateTimeRange r : s) {
+                if (r != null && r.getStart() != null && r.getEnd() != null && !r.getEnd().isBefore(r.getStart())) {
+                    ok.add(r);
+                }
+            }
+            return ok.size() < 2 ? List.of() : ok;
+        } catch (RuntimeException ex) {
+            return List.of();
+        }
+    }
+
     private boolean isWorking(LocalDate d) {
         Boolean w = workingCache.get(d);
         if (w == null) {
@@ -573,17 +598,46 @@ public final class GanttPanel extends javax.swing.JPanel {
             if (r < 0 || r >= tree.visible().size()) {
                 return null;
             }
-            Task t = tree.visible().get(r).task;
-            StringBuilder sb = new StringBuilder("<html><b>").append(Fmt.html(Fmt.text(t.getName()))).append("</b><br>");
-            sb.append(Fmt.date(t.getStart())).append(" – ").append(Fmt.date(t.getFinish()));
+            TaskTree.Row row = tree.visible().get(r);
+            Task t = row.task;
+            StringBuilder sb = new StringBuilder("<html><b>").append(t.getID() == null ? "" : t.getID() + " · ")
+                    .append(Fmt.html(Fmt.text(t.getName()))).append("</b>");
+            if (t.getWBS() != null) {
+                sb.append(" <font color='#64748b'>(WBS ").append(Fmt.html(t.getWBS())).append(")</font>");
+            }
+            sb.append("<br>").append(Fmt.dateTime(t.getStart())).append(" – ").append(Fmt.dateTime(t.getFinish()));
             sb.append("<br>Trvání: ").append(Fmt.duration(t.getDuration()));
             sb.append(" · Dokončeno: ").append(Fmt.percent(t.getPercentageComplete()));
+            if (t.getWork() != null) {
+                sb.append(" · Práce: ").append(Fmt.duration(t.getWork()));
+            }
             String res = Fmt.resources(t);
             if (!res.isEmpty()) {
                 sb.append("<br>Zdroje: ").append(Fmt.html(res));
             }
+            String pred = Fmt.predecessors(t);
+            if (!pred.isEmpty()) {
+                sb.append("<br>Předchůdci: ").append(Fmt.html(pred));
+            }
+            if (t.getTotalSlack() != null && !row.isSummary()) {
+                sb.append("<br>Celková rezerva: ").append(Fmt.duration(t.getTotalSlack()));
+            }
+            if (t.getDeadline() != null) {
+                sb.append("<br>Termín: ").append(Fmt.date(t.getDeadline()));
+            }
+            if (isRealConstraint(t)) {
+                sb.append("<br>Omezení: ").append(Labels.constraint(t.getConstraintType()))
+                        .append(t.getConstraintDate() == null ? "" : " " + Fmt.date(t.getConstraintDate()));
+            }
+            List<org.mpxj.LocalDateTimeRange> splits = splits(t);
+            if (splits.size() > 1) {
+                sb.append("<br>Rozdělený úkol: ").append(splits.size()).append(" částí");
+            }
             if (t.getCritical()) {
                 sb.append("<br><font color='#dc2626'>Kritický úkol</font>");
+            }
+            if (!t.getActive()) {
+                sb.append("<br><font color='#9ca3af'>Neaktivní úkol</font>");
             }
             return sb.append("</html>").toString();
         }
@@ -679,6 +733,18 @@ public final class GanttPanel extends javax.swing.JPanel {
                 g.setColor(Theme.DEADLINE);
                 g.fillPolygon(new int[]{dx - 5, dx + 5, dx}, new int[]{y0 + 5, y0 + 5, y0 + 13}, 3);
             }
+            if (isRealConstraint(t) && t.getConstraintDate() != null) {
+                // značka omezení: pevné (musí začít/skončit) plná, pružné (nejdříve/nejpozději) obrysová
+                int cx = (int) Math.round(x(t.getConstraintDate()));
+                boolean fixed = t.getConstraintType() == org.mpxj.ConstraintType.MUST_START_ON || t.getConstraintType() == org.mpxj.ConstraintType.MUST_FINISH_ON;
+                g.setColor(fixed ? Theme.CONSTRAINT_FIXED : Theme.CONSTRAINT_FLEXIBLE);
+                g.drawLine(cx, y0 + 20, cx, y0 + 25);
+                if (fixed) {
+                    g.fillRect(cx - 3, y0 + 21, 7, 4);
+                } else {
+                    g.drawRect(cx - 3, y0 + 21, 6, 3);
+                }
+            }
             if (s == null) {
                 return;
             }
@@ -707,11 +773,46 @@ public final class GanttPanel extends javax.swing.JPanel {
                 int y = y0 + 6;
                 Color strong = critical ? Theme.CRITICAL : Theme.TASK;
                 Color light = critical ? Theme.CRITICAL_LIGHT : Theme.TASK_LIGHT;
+                List<org.mpxj.LocalDateTimeRange> splits = inactive ? List.of() : splits(t);
                 if (inactive) {
                     g.setColor(Theme.INACTIVE);
                     g.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 4f, new float[]{3f, 3f}, 0f));
                     g.drawRoundRect(a, y, w, h, 3, 3);
                     g.setStroke(new BasicStroke(1f));
+                } else if (splits.size() > 1) {
+                    // rozdělený úkol: každá část jako pruh, mezery tečkovaně; průběh se rozloží podle délky částí
+                    double pct = t.getPercentageComplete() == null ? 0 : Math.max(0, Math.min(100, t.getPercentageComplete().doubleValue()));
+                    int totalW = 0;
+                    int[] xs = new int[splits.size() * 2];
+                    for (int k = 0; k < splits.size(); k++) {
+                        xs[2 * k] = (int) Math.round(x(splits.get(k).getStart()));
+                        xs[2 * k + 1] = Math.max(xs[2 * k] + 2, (int) Math.round(x(splits.get(k).getEnd())));
+                        totalW += xs[2 * k + 1] - xs[2 * k];
+                    }
+                    int remaining = (int) Math.round(totalW * pct / 100.0);
+                    g.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 4f, new float[]{2f, 3f}, 0f));
+                    for (int k = 0; k < splits.size(); k++) {
+                        int sa = xs[2 * k];
+                        int sw = xs[2 * k + 1] - sa;
+                        if (k > 0) {
+                            g.setColor(strong);
+                            g.drawLine(xs[2 * k - 1], y + h / 2, sa, y + h / 2);
+                        }
+                        g.setStroke(new BasicStroke(1f));
+                        g.setColor(light);
+                        g.fillRoundRect(sa, y, sw, h, 3, 3);
+                        int pw = Math.min(sw, remaining);
+                        if (pw > 0) {
+                            g.setColor(strong);
+                            g.fillRoundRect(sa, y, pw, h, 3, 3);
+                            remaining -= pw;
+                        }
+                        g.setColor(strong);
+                        g.drawRoundRect(sa, y, sw, h, 3, 3);
+                        g.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 4f, new float[]{2f, 3f}, 0f));
+                    }
+                    g.setStroke(new BasicStroke(1f));
+                    w = Math.max(w, xs[xs.length - 1] - a);
                 } else {
                     g.setColor(light);
                     g.fillRoundRect(a, y, w, h, 3, 3);
@@ -757,59 +858,72 @@ public final class GanttPanel extends javax.swing.JPanel {
             for (int i = 0; i < rows.size(); i++) {
                 index.put(rows.get(i).key(), i);
             }
-            g.setStroke(new BasicStroke(1.1f));
-            for (int i = 0; i < rows.size(); i++) {
-                Task t = rows.get(i).task;
-                if (t.getStart() == null || t.getFinish() == null) {
-                    continue;
-                }
-                for (Relation rel : t.getPredecessors()) {
-                    Task p = rel.getPredecessorTask();
-                    if (p == null || p.getStart() == null || p.getFinish() == null) {
+            int selected = table.getSelectedRow();
+            // vazby vybraného úkolu se kreslí až nakonec, zvýrazněně
+            for (int pass = 0; pass < 2; pass++) {
+                boolean highlightPass = pass == 1;
+                g.setStroke(new BasicStroke(highlightPass ? 2.2f : 1.1f));
+                for (int i = 0; i < rows.size(); i++) {
+                    Task t = rows.get(i).task;
+                    if (t.getStart() == null || t.getFinish() == null) {
                         continue;
                     }
-                    Integer j = index.get(p.getUniqueID() != null ? p.getUniqueID() : System.identityHashCode(p));
-                    if (j == null) {
-                        continue;
-                    }
-                    if ((i < from && j < from) || (i >= to && j >= to)) {
-                        continue;
-                    }
-                    RelationType type = rel.getType() == null ? RelationType.FINISH_START : rel.getType();
-                    boolean fromStart = type == RelationType.START_START || type == RelationType.START_FINISH;
-                    boolean toFinish = type == RelationType.FINISH_FINISH || type == RelationType.START_FINISH;
-                    int sx = (int) Math.round(x(fromStart ? p.getStart() : p.getFinish()));
-                    int tx = (int) Math.round(x(toFinish ? t.getFinish() : t.getStart()));
-                    int sy = j * Theme.ROW + 13;
-                    int ty = i * Theme.ROW + 13;
-                    g.setColor(t.getCritical() && p.getCritical() ? Theme.CRITICAL : Theme.LINK);
-                    int yBound = ty > sy ? ty - Theme.ROW / 2 + 1 : ty + Theme.ROW / 2 - 1;
-                    if (!fromStart && !toFinish) {
-                        int mx = sx + 8;
-                        if (mx <= tx - 3) {
-                            polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
-                        } else {
-                            polyline(g, sx, sy, mx, sy, mx, yBound, tx - 8, yBound, tx - 8, ty, tx, ty);
+                    for (Relation rel : t.getPredecessors()) {
+                        Task p = rel.getPredecessorTask();
+                        if (p == null || p.getStart() == null || p.getFinish() == null) {
+                            continue;
                         }
-                        arrow(g, tx, ty, true);
-                    } else if (fromStart && !toFinish) {
-                        int mx = Math.min(sx, tx) - 8;
-                        polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
-                        arrow(g, tx, ty, true);
-                    } else if (!fromStart) {
-                        int mx = Math.max(sx, tx) + 8;
-                        polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
-                        arrow(g, tx, ty, false);
-                    } else {
-                        int mx = sx - 8;
-                        if (mx >= tx + 3) {
-                            polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
-                        } else {
-                            polyline(g, sx, sy, mx, sy, mx, yBound, tx + 8, yBound, tx + 8, ty, tx, ty);
+                        Integer j = index.get(p.getUniqueID() != null ? p.getUniqueID() : System.identityHashCode(p));
+                        if (j == null) {
+                            continue;
                         }
-                        arrow(g, tx, ty, false);
+                        boolean highlighted = selected >= 0 && (i == selected || j == selected);
+                        if (highlighted != highlightPass) {
+                            continue;
+                        }
+                        if ((i < from && j < from) || (i >= to && j >= to)) {
+                            continue;
+                        }
+                        RelationType type = rel.getType() == null ? RelationType.FINISH_START : rel.getType();
+                        boolean fromStart = type == RelationType.START_START || type == RelationType.START_FINISH;
+                        boolean toFinish = type == RelationType.FINISH_FINISH || type == RelationType.START_FINISH;
+                        int sx = (int) Math.round(x(fromStart ? p.getStart() : p.getFinish()));
+                        int tx = (int) Math.round(x(toFinish ? t.getFinish() : t.getStart()));
+                        int sy = j * Theme.ROW + 13;
+                        int ty = i * Theme.ROW + 13;
+                        g.setColor(highlighted ? Theme.HIGHLIGHT : t.getCritical() && p.getCritical() ? Theme.CRITICAL : Theme.LINK);
+                        paintLink(g, sx, sy, tx, ty, fromStart, toFinish);
                     }
                 }
+            }
+        }
+
+        private void paintLink(Graphics2D g, int sx, int sy, int tx, int ty, boolean fromStart, boolean toFinish) {
+            int yBound = ty > sy ? ty - Theme.ROW / 2 + 1 : ty + Theme.ROW / 2 - 1;
+            if (!fromStart && !toFinish) {
+                int mx = sx + 8;
+                if (mx <= tx - 3) {
+                    polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
+                } else {
+                    polyline(g, sx, sy, mx, sy, mx, yBound, tx - 8, yBound, tx - 8, ty, tx, ty);
+                }
+                arrow(g, tx, ty, true);
+            } else if (fromStart && !toFinish) {
+                int mx = Math.min(sx, tx) - 8;
+                polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
+                arrow(g, tx, ty, true);
+            } else if (!fromStart) {
+                int mx = Math.max(sx, tx) + 8;
+                polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
+                arrow(g, tx, ty, false);
+            } else {
+                int mx = sx - 8;
+                if (mx >= tx + 3) {
+                    polyline(g, sx, sy, mx, sy, mx, ty, tx, ty);
+                } else {
+                    polyline(g, sx, sy, mx, sy, mx, yBound, tx + 8, yBound, tx + 8, ty, tx, ty);
+                }
+                arrow(g, tx, ty, false);
             }
         }
 

@@ -90,6 +90,7 @@ public final class MainWindow extends JFrame {
     final GanttPanel gantt = new GanttPanel(tree, table);
     final DetailsPanel details = new DetailsPanel();
     final ResourcePanel resources = new ResourcePanel();
+    final ResourceUsagePanel usage = new ResourceUsagePanel();
     final ProjectInfoPanel info = new ProjectInfoPanel();
     final JTextField search = new JTextField(18);
     final JComboBox<TaskTree.Filter> filterBox = new JComboBox<>(TaskTree.Filter.values());
@@ -237,10 +238,12 @@ public final class MainWindow extends JFrame {
 
         details.setNavigator(this::goToTask);
         resources.setNavigator(this::goToTask);
+        usage.setNavigator(this::goToTask);
 
         tabs.setFont(Theme.BASE);
         tabs.addTab("Ganttův diagram", verticalSplit);
         tabs.addTab("Zdroje", resources);
+        tabs.addTab("Vytížení", usage);
         tabs.addTab("Projekt", info);
 
         setJMenuBar(buildMenu());
@@ -248,7 +251,7 @@ public final class MainWindow extends JFrame {
         add(tabs, BorderLayout.CENTER);
         add(buildStatusBar(), BorderLayout.SOUTH);
 
-        installDropHandler(getRootPane(), table, gantt.getChart(), gantt.getHeader(), resources.table(), details, info, tabs);
+        installDropHandler(getRootPane(), table, gantt.getChart(), gantt.getHeader(), resources.table(), usage.table(), usage, details, info, tabs);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -924,6 +927,7 @@ public final class MainWindow extends JFrame {
         details.setProject(file);
         details.show(null);
         resources.setProject(file);
+        usage.setProject(file);
         info.setProject(file, path, tree);
         updateLevelBox();
         String name = path.getFileName().toString();

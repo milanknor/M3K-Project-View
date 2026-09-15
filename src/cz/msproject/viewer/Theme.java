@@ -29,6 +29,13 @@ public final class Theme {
     public static final Color DEADLINE = new Color(22, 163, 74);
     public static final Color LINK = new Color(71, 85, 105);
     public static final Color INACTIVE = new Color(156, 163, 175);
+    /** Zvýraznění vazeb vybraného úkolu (oranžová značky M3K). */
+    public static final Color HIGHLIGHT = new Color(0xFF, 0x79, 0x0A);
+    public static final Color CONSTRAINT_FLEXIBLE = new Color(37, 99, 235);
+    public static final Color CONSTRAINT_FIXED = new Color(190, 24, 93);
+    public static final Color OVERALLOCATED = new Color(254, 202, 202);
+    public static final Color OVERALLOCATED_INK = new Color(153, 27, 27);
+    public static final Color WORK_LIGHT = new Color(255, 237, 213);
 
     public static final Font BASE = new Font("Segoe UI", Font.PLAIN, 13);
     public static final Font BOLD = BASE.deriveFont(Font.BOLD);
