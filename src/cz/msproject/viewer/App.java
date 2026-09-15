@@ -37,9 +37,6 @@ public final class App {
             if (file != null) {
                 w.open(file);
             }
-            if (prefs().getBoolean("updateCheck", false)) {
-                w.checkUpdates(true);
-            }
         });
     }
 

@@ -41,8 +41,8 @@ public final class Str {
                 {"Zobrazit celkovou rezervu", "Show Total Slack"}, {"Vzhled", "Appearance"}, {"Světlý režim", "Light Mode"}, {"Tmavý režim", "Dark Mode"},
                 {"Menší písmo", "Smaller Font"}, {"Normální písmo", "Normal Font"}, {"Větší písmo", "Larger Font"}, {"Největší písmo", "Largest Font"},
                 {"Zvětšit písmo", "Increase Font Size"}, {"Zmenšit písmo", "Decrease Font Size"}, {"Jazyk", "Language"},
-                {"Ovládání", "Controls"}, {"Licence…", "Licenses…"}, {"O aplikaci", "About"}, {"Zkontrolovat aktualizace…", "Check for Updates…"},
-                {"Kontrolovat aktualizace při startu", "Check for Updates at Startup"}, {"(bez souboru)", "(no file)"}, {"(žádné)", "(none)"},
+                {"Ovládání", "Controls"}, {"Licence…", "Licenses…"}, {"O aplikaci", "About"},
+                {"(bez souboru)", "(no file)"}, {"(žádné)", "(none)"},
                 {"Vymazat seznam", "Clear List"}, {"Shift+kliknutí otevře v novém okně", "Shift+click opens in a new window"},
                 // lišta
                 {"Hledat:", "Find:"}, {"Filtr:", "Filter:"}, {"Osnova:", "Outline:"}, {"Měřítko:", "Scale:"}, {"Filtr…", "Filter…"}, {"Filtr ●", "Filter ●"},
@@ -218,10 +218,6 @@ public final class Str {
                 {"Modrá = úkol, červená = kritický úkol, černý pruh = souhrn, kosočtverec = milník, zelená šipka = termín, ", "Blue = task, red = critical task, black bar = summary, diamond = milestone, green arrow = deadline, "},
                 {"šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu.<br><br>", "grey bar = baseline, red vertical line = today, blue = status date.<br><br>"},
                 {"<b>Export</b><br>Ctrl+E uloží zobrazené úkoly do CSV (otevře se v Excelu), Ctrl+Shift+P uloží diagram jako PNG.<br><br>", "<b>Export</b><br>Ctrl+E saves visible tasks to CSV (opens in Excel), Ctrl+Shift+P saves the chart as PNG.<br><br>"},
-                // aktualizace
-                {"Kontrola aktualizací", "Update check"}, {"Máte nejnovější verzi ", "You have the latest version "},
-                {"Je k dispozici nová verze ", "A new version is available: "}, {" (máte ", " (you have "}, {"Otevřít stránku se stažením?", "Open the download page?"},
-                {"Kontrola aktualizací se nezdařila (bez připojení, nebo soubor s verzí není dostupný).", "The update check failed (no connection, or the version file is unavailable)."},
                 {"Čeština", "Czech"}, {"English", "English"},
                 {"Změna jazyka se projeví po restartu programu. Restartovat nyní?", "The language change takes effect after restarting the program. Restart now?"},
                 {"Restart se nezdařil – ukončete a spusťte program ručně.", "Restart failed – please close and start the program manually."},

@@ -48,7 +48,7 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
   nebo angličtina (Zobrazit → Jazyk, projeví se po restartu).
 - Více souborů ve více oknech (Ctrl+N, nabídka Okno), úvodní obrazovka s nedávnými
   soubory, drag & drop, spuštění s cestou k souboru jako argumentem, kontextová
-  nabídka „Otevřít v M3K Project View“ v Průzkumníku, kontrola aktualizací.
+  nabídka „Otevřít v M3K Project View“ v Průzkumníku. Program se nepřipojuje k síti.
 
 ## Ovládání
 
@@ -148,8 +148,7 @@ i vytížení tak, jak jsou uložené v souboru (u XML/MPX bez časově rozlože
 se vytížení odvozuje z rovnoměrného rozložení práce). Vložené podprojekty se
 neslučují do jednoho zobrazení – otevřou se odkazem v samostatném okně. Anglický
 překlad pokrývá nabídky, sloupce, dialogy a nápovědu; některé stavové hlášky
-zůstávají česky. Kontrola aktualizací funguje jen tehdy, když je soubor
-`version.txt` v repozitáři veřejně dostupný. Seskupování úkolů (jako v Projectu)
+zůstávají česky. Seskupování úkolů (jako v Projectu)
 není k dispozici – nahrazují ho řazení, filtry a sloupce.
 
 Čtení souborů zajišťuje [MPXJ](https://www.mpxj.org) (LGPL 2.1+). Tato aplikace

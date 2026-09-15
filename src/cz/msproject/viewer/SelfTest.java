@@ -281,11 +281,6 @@ public final class SelfTest {
         check(Str.dictionarySize() > 300, "Slovník překladů je podezřele malý: " + Str.dictionarySize());
         check(Str.isEnglish() ? Str.t("Soubor").equals("File") : Str.t("Soubor").equals("Soubor"), "Str.t nevrací očekávaný text");
         check(Str.t("__neexistuje__").equals("__neexistuje__"), "Str.t nevrací nepřeložený text beze změny");
-        check(UpdateCheck.compare("0.2.0", "0.1.0") > 0 && UpdateCheck.compare("0.10.0", "0.9.9") > 0 && UpdateCheck.compare("1.0", "1.0.0") == 0
-                && UpdateCheck.compare("0.1.0", "0.2.0") < 0, "Porovnání verzí nesedí");
-        UpdateCheck.Result ur = UpdateCheck.parse("99.0.0\nhttps://example.org/x\n");
-        check(ur.newer() && ur.latest().equals("99.0.0") && ur.downloadUrl().equals("https://example.org/x"), "Parsování odpovědi kontroly verze nesedí");
-        check(!UpdateCheck.parse(MainWindow.VERSION).newer(), "Stejná verze hlášena jako novější");
 
         // výkon: syntetický projekt s 10 000 úkoly – načtení stromu, sloupce, řazení, filtr, text buněk
         {

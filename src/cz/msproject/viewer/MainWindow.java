@@ -462,12 +462,6 @@ public final class MainWindow extends JFrame {
         help.setMnemonic('N');
         help.add(item(Str.t("Ovládání"), KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0), this::showHelp));
         help.add(item(Str.t("Licence…"), null, () -> new LicenseDialog(this).setVisible(true)));
-        help.addSeparator();
-        help.add(item(Str.t("Zkontrolovat aktualizace…"), null, () -> checkUpdates(false)));
-        JCheckBoxMenuItem autoUpdate = new JCheckBoxMenuItem(Str.t("Kontrolovat aktualizace při startu"), prefs.getBoolean("updateCheck", false));
-        autoUpdate.addActionListener(e -> prefs.putBoolean("updateCheck", autoUpdate.isSelected()));
-        help.add(autoUpdate);
-        help.addSeparator();
         help.add(item(Str.t("O aplikaci"), null, this::showAbout));
         bar.add(help);
         return bar;
@@ -862,7 +856,7 @@ public final class MainWindow extends JFrame {
         table.getTableHeader().repaint();
     }
 
-    // ---------------------------------------------------------------- jazyk a aktualizace
+    // ---------------------------------------------------------------- jazyk
 
     private void changeLanguage(String lang) {
         if (lang.equals(Str.lang())) {
@@ -874,44 +868,6 @@ public final class MainWindow extends JFrame {
         if (r == JOptionPane.YES_OPTION && !App.restartApplication()) {
             JOptionPane.showMessageDialog(this, Str.t("Restart se nezdařil – ukončete a spusťte program ručně."), Str.t("Jazyk"), JOptionPane.WARNING_MESSAGE);
         }
-    }
-
-    /** Kontrola nové verze na pozadí; {@code quiet} = při startu (bez hlášky, když je vše aktuální nebo síť nejde). */
-    void checkUpdates(boolean quiet) {
-        if (!quiet) {
-            status.setText(Str.t("Kontrola aktualizací") + "…");
-        }
-        new SwingWorker<UpdateCheck.Result, Void>() {
-            @Override
-            protected UpdateCheck.Result doInBackground() throws Exception {
-                return UpdateCheck.check();
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    UpdateCheck.Result r = get();
-                    if (r.newer()) {
-                        int choice = JOptionPane.showConfirmDialog(MainWindow.this,
-                                Str.t("Je k dispozici nová verze ") + r.latest() + Str.t(" (máte ") + VERSION + ").\n" + Str.t("Otevřít stránku se stažením?"),
-                                Str.t("Kontrola aktualizací"), JOptionPane.YES_NO_OPTION, JOptionPane.INFORMATION_MESSAGE);
-                        if (choice == JOptionPane.YES_OPTION && java.awt.Desktop.isDesktopSupported()) {
-                            java.awt.Desktop.getDesktop().browse(java.net.URI.create(r.downloadUrl()));
-                        }
-                    } else if (!quiet) {
-                        JOptionPane.showMessageDialog(MainWindow.this, Str.t("Máte nejnovější verzi ") + VERSION + ".", Str.t("Kontrola aktualizací"), JOptionPane.INFORMATION_MESSAGE);
-                    }
-                    if (!quiet) {
-                        status.setText(" ");
-                    }
-                } catch (Exception ex) {
-                    if (!quiet) {
-                        showError(Str.t("Kontrola aktualizací se nezdařila (bez připojení, nebo soubor s verzí není dostupný)."), ex);
-                        status.setText(" ");
-                    }
-                }
-            }
-        }.execute();
     }
 
     // ---------------------------------------------------------------- rozšířený filtr
