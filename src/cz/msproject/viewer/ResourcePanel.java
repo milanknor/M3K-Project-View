@@ -155,7 +155,7 @@ public final class ResourcePanel extends JPanel {
             }
             resModel.addRow(new Object[]{
                     Fmt.text(r.getID()),
-                    r.getName(),
+                    Fmt.text(r.getName()),
                     Labels.resourceType(r.getType()),
                     Fmt.text(r.getInitials()),
                     Fmt.text(r.getGroup()),
@@ -187,7 +187,7 @@ public final class ResourcePanel extends JPanel {
             return;
         }
         Resource r = resources.get(idx);
-        asgTitle.setText("Přiřazení zdroje: " + r.getName());
+        asgTitle.setText(Fmt.plain("Přiřazení zdroje: " + r.getName()));
         for (ResourceAssignment a : r.getTaskAssignments()) {
             Task t = a.getTask();
             if (t == null || t.getName() == null) {
@@ -196,7 +196,7 @@ public final class ResourcePanel extends JPanel {
             asgTasks.add(t);
             asgModel.addRow(new Object[]{
                     Fmt.text(t.getID()),
-                    t.getName(),
+                    Fmt.text(t.getName()),
                     Fmt.units(a.getUnits()),
                     Fmt.duration(a.getWork()),
                     Fmt.date(a.getStart()),

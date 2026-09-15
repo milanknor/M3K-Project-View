@@ -130,6 +130,9 @@ if ($Package) {
         "--java-options", "-Dfile.encoding=UTF-8",
         "--java-options", "-Xss4m",
         "--java-options", "-XX:MaxRAMPercentage=60",
+        "--java-options", "-Djavax.xml.accessExternalDTD=",
+        "--java-options", "-Djavax.xml.accessExternalSchema=",
+        "--java-options", "-Djdk.xml.entityExpansionLimit=1000",
         "--java-options", "-XX:+UseStringDeduplication"
     )
     if ($icon) { $args += @("--icon", $icon) }

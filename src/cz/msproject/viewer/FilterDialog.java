@@ -58,7 +58,7 @@ final class FilterDialog extends JDialog {
         if (project != null) {
             for (Resource r : project.getResources()) {
                 if (r.getName() != null && !r.getName().isBlank()) {
-                    resourceBox.addItem(r.getName());
+                    resourceBox.addItem(Fmt.text(r.getName()));
                 }
             }
         }

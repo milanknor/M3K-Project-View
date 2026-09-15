@@ -484,7 +484,7 @@ public final class ResourceUsagePanel extends JPanel {
         if (!(key instanceof Resource r)) {
             return;
         }
-        detailTitle.setText("Práce zdroje „" + r.getName() + Str.t("“ po úkolech (dvojklik přejde na úkol)"));
+        detailTitle.setText(Fmt.text("Práce zdroje „" + r.getName()) + Str.t("“ po úkolech (dvojklik přejde na úkol)"));
         Usage u = new Usage(usage.buckets, usage.headers);
         for (ResourceAssignment a : r.getTaskAssignments()) {
             Task t = a.getTask();
@@ -492,7 +492,7 @@ public final class ResourceUsagePanel extends JPanel {
                 continue;
             }
             double[] w = hours(a.getTimephasedWork(usage.buckets, TimeUnit.HOURS), usage.buckets.size());
-            u.names.add((t.getID() == null ? "" : t.getID() + " · ") + t.getName());
+            u.names.add(Fmt.text((t.getID() == null ? "" : t.getID() + " · ") + t.getName()));
             u.detail.add(Fmt.units(a.getUnits()) + (a.getStart() == null ? "" : ", " + Fmt.date(a.getStart()) + " – " + Fmt.date(a.getFinish())));
             u.work.add(w);
             u.capacity.add(null);
@@ -574,7 +574,7 @@ public final class ResourceUsagePanel extends JPanel {
                     }
                 }
             }
-            u.names.add(r.getName());
+            u.names.add(Fmt.text(r.getName()));
             u.detail.add(Labels.resourceType(r.getType()) + ", " + Fmt.units(r.getMaxUnits()));
             u.work.add(work);
             u.capacity.add(cap);

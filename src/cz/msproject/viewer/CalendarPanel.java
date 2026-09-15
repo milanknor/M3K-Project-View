@@ -158,12 +158,12 @@ public final class CalendarPanel extends JPanel {
             if (c.getName() == null || c.getName().isBlank()) {
                 continue;
             }
-            String label = c.getName();
+            String label = Fmt.text(c.getName());
             if (c == def) {
                 label += Str.t("   (výchozí)");
                 selected = calendars.size();
             } else if (c.isDerived() && c.getParent() != null) {
-                label += "   ← " + c.getParent().getName();
+                label += "   ← " + Fmt.text(c.getParent().getName());
             }
             int users = usersOf(p, c);
             if (users > 0) {
@@ -223,7 +223,7 @@ public final class CalendarPanel extends JPanel {
         ProjectCalendar c = current;
         StringBuilder t = new StringBuilder(Fmt.text(c.getName()));
         if (c.isDerived() && c.getParent() != null) {
-            t.append(Str.t("   —   odvozený z „")).append(c.getParent().getName()).append("“");
+            t.append(Str.t("   —   odvozený z „")).append(Fmt.text(c.getParent().getName())).append("“");
         }
         if (c.getMinutesPerDay() != null) {
             t.append("   —   ").append(Fmt.number(c.getMinutesPerDay() / 60.0)).append(Str.t(" h/den"));

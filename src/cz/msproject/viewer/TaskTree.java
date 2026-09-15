@@ -138,31 +138,35 @@ public final class TaskTree {
                 && t.getUniqueID() != null && t.getUniqueID() == 0;
     }
 
-    private void addTask(Task t, Row parent, int depth, Set<Task> seen) {
-        if (t == null || !seen.add(t)) {
-            return;
+    /** Průchod hierarchií bez rekurze (soubor s tisíci úrovněmi nesmí přetéct zásobník); pořadí zůstává jako v souboru. */
+    private void addTask(Task root, Row rootParent, int rootDepth, Set<Task> seen) {
+        record Frame(Task task, Row parent, int depth) {
         }
-        if (isProjectSummary(t)) {
-            for (Task c : t.getChildTasks()) {
-                addTask(c, parent, depth, seen);
+        java.util.ArrayDeque<Frame> stack = new java.util.ArrayDeque<>();
+        stack.push(new Frame(root, rootParent, rootDepth));
+        while (!stack.isEmpty()) {
+            Frame f = stack.pop();
+            Task t = f.task();
+            if (t == null || !seen.add(t)) {
+                continue;
             }
-            return;
-        }
-        if (!isRealTask(t)) {
-            for (Task c : t.getChildTasks()) {
-                addTask(c, parent, depth, seen);
+            Row parent = f.parent();
+            int depth = f.depth();
+            if (!isProjectSummary(t) && isRealTask(t)) {
+                Row row = new Row(t, parent, depth, all.size());
+                all.add(row);
+                if (parent == null) {
+                    roots.add(row);
+                } else {
+                    parent.children.add(row);
+                }
+                parent = row;
+                depth = depth + 1;
             }
-            return;
-        }
-        Row row = new Row(t, parent, depth, all.size());
-        all.add(row);
-        if (parent == null) {
-            roots.add(row);
-        } else {
-            parent.children.add(row);
-        }
-        for (Task c : t.getChildTasks()) {
-            addTask(c, row, depth + 1, seen);
+            List<Task> children = t.getChildTasks();
+            for (int i = children.size() - 1; i >= 0; i--) {
+                stack.push(new Frame(children.get(i), parent, depth));
+            }
         }
     }
 
@@ -376,26 +380,38 @@ public final class TaskTree {
         }
     }
 
-    private void addFiltered(Row r, Set<Row> keep) {
-        if (!keep.contains(r)) {
-            return;
-        }
-        visible.add(r);
-        for (Row c : ordered(r.children)) {
-            addFiltered(c, keep);
+    private void addFiltered(Row root, Set<Row> keep) {
+        java.util.ArrayDeque<Row> stack = new java.util.ArrayDeque<>();
+        stack.push(root);
+        while (!stack.isEmpty()) {
+            Row r = stack.pop();
+            if (!keep.contains(r)) {
+                continue;
+            }
+            visible.add(r);
+            List<Row> children = ordered(r.children);
+            for (int i = children.size() - 1; i >= 0; i--) {
+                stack.push(children.get(i));
+            }
         }
     }
 
-    private void addVisible(Row r) {
-        if (r.depth >= maxDepth) {
-            return;
-        }
-        visible.add(r);
-        if (collapsed.contains(r.key())) {
-            return;
-        }
-        for (Row c : ordered(r.children)) {
-            addVisible(c);
+    private void addVisible(Row root) {
+        java.util.ArrayDeque<Row> stack = new java.util.ArrayDeque<>();
+        stack.push(root);
+        while (!stack.isEmpty()) {
+            Row r = stack.pop();
+            if (r.depth >= maxDepth) {
+                continue;
+            }
+            visible.add(r);
+            if (collapsed.contains(r.key())) {
+                continue;
+            }
+            List<Row> children = ordered(r.children);
+            for (int i = children.size() - 1; i >= 0; i--) {
+                stack.push(children.get(i));
+            }
         }
     }
 

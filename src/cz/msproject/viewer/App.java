@@ -32,12 +32,24 @@ public final class App {
         }
         // až po testech: v testech má chyba shodit proces, ne zobrazit dialog
         ErrorLog.install();
-        Path file = args.length > 0 ? Path.of(args[0]) : null;
+        Path file = null;
+        String badArg = null;
+        if (args.length > 0 && !args[0].isBlank()) {
+            try {
+                file = Path.of(args[0]);
+            } catch (java.nio.file.InvalidPathException ex) {
+                badArg = args[0];
+            }
+        }
+        final Path toOpen = file;
+        final String invalid = badArg;
         SwingUtilities.invokeLater(() -> {
             MainWindow w = new MainWindow();
             w.setVisible(true);
-            if (file != null) {
-                w.open(file);
+            if (toOpen != null) {
+                w.open(toOpen);
+            } else if (invalid != null) {
+                w.showError(Str.t("Soubor neexistuje nebo není přístupný:\n") + invalid, null);
             }
         });
     }

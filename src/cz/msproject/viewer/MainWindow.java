@@ -860,6 +860,12 @@ public final class MainWindow extends JFrame {
         status.setText(extraFilter == null ? Str.t("Rozšířený filtr zrušen.") : Str.t("Rozšířený filtr: ") + extraFilter.describe() + "   (" + tree.matchCount() + Str.t(" shod)"));
     }
 
+    /** UNC cesta (\\server\sdílení) nebo URL – přístup k ní znamená síťové spojení. */
+    static boolean isNetworkPath(Path p) {
+        String s = p.toString();
+        return s.startsWith("\\\\") || s.startsWith("//") || s.matches("(?i)^[a-z]+://.*");
+    }
+
     /** Otevře vložený podprojekt v novém okně; cesta se hledá absolutně i relativně k otevřenému souboru. */
     void openSubproject(String ref) {
         if (ref == null || ref.isBlank()) {
@@ -882,6 +888,13 @@ public final class MainWindow extends JFrame {
             return;
         }
         for (Path c : candidates) {
+            // síťová cesta ze souboru: samotný přístup by mohl odeslat přihlašovací údaje Windows cizímu serveru – proto dotaz
+            if (isNetworkPath(c) && JOptionPane.showConfirmDialog(this,
+                    Str.t("Odkaz na podprojekt vede na síťovou cestu:") + "\n" + c + "\n\n"
+                            + Str.t("Otevřít ji? Přistupujte jen k serverům, kterým důvěřujete."),
+                    Str.t("Podprojekt"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) {
+                return;
+            }
             if (Files.isRegularFile(c)) {
                 newWindow().open(c);
                 return;

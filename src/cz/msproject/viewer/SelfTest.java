@@ -376,6 +376,106 @@ public final class SelfTest {
             check((t2 - t1) < 5e9 && (t3 - t2) < 10e9 && (t4 - t3) < 5e9, "Syntetický projekt: příliš pomalé");
         }
 
+        // odolnost: 20 000 úrovní vnořené osnovy (řetěz) nesmí přetéct zásobník; síťové cesty se poznají
+        {
+            ProjectFile deep = new ProjectFile();
+            Task parent = deep.addTask();
+            parent.setName("L0");
+            for (int i = 1; i < 20_000; i++) {
+                parent = parent.addTask();
+                parent.setName("L" + i);
+            }
+            TaskTree deepTree = new TaskTree();
+            deepTree.load(deep);
+            check(deepTree.size() == 20_000 && deepTree.maxDepthInProject() == 20_000, "Hluboká osnova: špatný počet/hloubka");
+            deepTree.expandAll();
+            check(deepTree.visible().size() == 20_000, "Hluboká osnova: rozbalení nezobrazilo vše");
+            deepTree.setQuery("L19999");
+            check(deepTree.matchCount() == 1 && deepTree.visible().size() == 20_000, "Hluboká osnova: filtr nedržel cestu k listu");
+            deepTree.setQuery("");
+            deepTree.collapseAll();
+            check(deepTree.visible().size() == 1, "Hluboká osnova: sbalení");
+            TaskTree.Row leaf = deepTree.all().get(19_999);
+            deepTree.reveal(leaf);
+            check(deepTree.indexOfVisible(leaf) == 19_999, "Hluboká osnova: reveal");
+            check(MainWindow.isNetworkPath(Path.of("\\\\server\\share\\x.mpp")) && !MainWindow.isNetworkPath(Path.of("C:\\x\\y.mpp")), "isNetworkPath nesedí");
+        }
+
+        // škodlivé a podvržené soubory: vše se musí odmítnout rychle a bez přístupu k síti/souborům
+        {
+            String base = Files.readString(Path.of(args[1]).resolveSibling("mspdirelations.xml"), StandardCharsets.UTF_8);
+            int nl = base.indexOf('\n');
+            String head = base.substring(0, nl);
+            String rest = base.substring(nl + 1);
+            java.util.Map<String, String> samples = new java.util.LinkedHashMap<>();
+            samples.put("xxe-file.xml", head + "\n<!DOCTYPE Project [<!ENTITY xxe SYSTEM \"file:///C:/Windows/win.ini\">]>\n"
+                    + rest.replace("<Name>Task 1</Name>", "<Name>XXE:&xxe;:END</Name>"));
+            samples.put("xxe-net.xml", head + "\n<!DOCTYPE Project [<!ENTITY net SYSTEM \"http://127.0.0.1:9/x\">]>\n"
+                    + rest.replace("<Name>Task 1</Name>", "<Name>&net;</Name>"));
+            samples.put("xxe-dtd.xml", head + "\n<!DOCTYPE Project SYSTEM \"http://127.0.0.1:9/evil.dtd\">\n" + rest);
+            StringBuilder ents = new StringBuilder("<!ENTITY a0 \"lol\">");
+            for (int i = 1; i < 10; i++) {
+                ents.append("<!ENTITY a").append(i).append(" \"").append(("&a" + (i - 1) + ";").repeat(10)).append("\">");
+            }
+            samples.put("bomb.xml", head + "\n<!DOCTYPE Project [" + ents + "]>\n" + rest.replace("<Name>Task 1</Name>", "<Name>&a9;</Name>"));
+            samples.put("deep.xml", head + "\n<Project xmlns=\"http://schemas.microsoft.com/project\"><Tasks>" + "<Task>".repeat(50_000) + "</Task>".repeat(50_000) + "</Tasks></Project>");
+            samples.put("zip-as.xml", "PK\u0003\u0004zip content pretending to be xml");
+            samples.put("xml-as.mpp", base);
+            samples.put("xml-as.mpx", base);
+            samples.put("junk.mpd", "not an access database at all, just text ......................");
+            samples.put("script.xml", head + "\n" + rest.replace("<Name>Task 1</Name>", "<Name>&lt;html&gt;&lt;img src='http://127.0.0.1:9/i'&gt;</Name>"));
+            Path dir = Files.createTempDirectory("m3k-malicious-");
+            try {
+                for (java.util.Map.Entry<String, String> e : samples.entrySet()) {
+                    Path f = dir.resolve(e.getKey());
+                    Files.writeString(f, e.getValue(), StandardCharsets.UTF_8);
+                    long t0 = System.nanoTime();
+                    boolean rejected;
+                    String outcome;
+                    try {
+                        ProjectFile pf = ProjectLoader.load(f, null);
+                        rejected = false;
+                        StringBuilder names = new StringBuilder();
+                        for (Task t : pf.getTasks()) {
+                            names.append(Fmt.text(t.getName())).append('|');
+                        }
+                        outcome = "načteno: " + names;
+                        check(!names.toString().contains("[fonts]") && !names.toString().contains("win.ini"), "XXE: obsah lokálního souboru pronikl do dat: " + f);
+                        check(!names.toString().contains("lollol"), "Entity bomb: expanze prošla: " + f);
+                        if (e.getKey().equals("script.xml")) {
+                            for (Task t : pf.getTasks()) {
+                                String n = Fmt.text(t.getName());
+                                check(!javax.swing.plaf.basic.BasicHTML.isHTMLString(n), "Název úkolu by Swing vykreslil jako HTML: " + n);
+                            }
+                        }
+                    } catch (Exception ex) {
+                        rejected = true;
+                        outcome = "odmítnuto: " + ProjectLoader.rootCause(ex).getClass().getSimpleName();
+                    }
+                    double sec = (System.nanoTime() - t0) / 1e9;
+                    check(sec < 20, "Škodlivý soubor se zpracovával příliš dlouho (" + sec + " s): " + f);
+                    boolean mustReject = !e.getKey().equals("script.xml");
+                    check(!mustReject || rejected, "Podvržený soubor nebyl odmítnut: " + f + " (" + outcome + ")");
+                    System.out.printf(java.util.Locale.ROOT, "  ochrana %-12s %s (%.2f s)%n", e.getKey(), outcome.length() > 90 ? outcome.substring(0, 90) + "…" : outcome, sec);
+                }
+            } finally {
+                try (var st = Files.list(dir)) {
+                    for (Path f : st.toList()) {
+                        Files.deleteIfExists(f);
+                    }
+                }
+                Files.deleteIfExists(dir);
+            }
+            check(!javax.swing.plaf.basic.BasicHTML.isHTMLString(Fmt.text("<html><img src='http://x/'>")), "Fmt.text nezneškodnil <html>");
+            check(!javax.swing.plaf.basic.BasicHTML.isHTMLString(Fmt.text("  <HTML>x")), "Fmt.text nezneškodnil <HTML> za mezerami");
+            check(Fmt.text("běžný <b>text</b>").equals("běžný <b>text</b>"), "Fmt.text mění běžný text");
+            check(!ProjectLoader.signatureMatches(ProjectLoader.Kind.MPP, "MPX,abc".getBytes(StandardCharsets.US_ASCII))
+                    && ProjectLoader.signatureMatches(ProjectLoader.Kind.XML, "\uFEFF  <?xml".getBytes(StandardCharsets.UTF_8))
+                    && ProjectLoader.kindByExtension(Path.of("a.MPT")) == ProjectLoader.Kind.MPP && ProjectLoader.kindByExtension(Path.of("a.exe")) == null,
+                    "Kontrola signatury/přípony nesedí");
+            check("".equals(System.getProperty("javax.xml.accessExternalDTD")), "Limity XML nejsou nastavené");
+        }
+
         Path bad = Files.createTempFile("msproject-viewer-invalid-", ".mpp");
         try {
             Files.writeString(bad, "toto není soubor MPP");

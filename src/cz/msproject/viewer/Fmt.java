@@ -221,12 +221,32 @@ public final class Fmt {
         return String.join(", ", names);
     }
 
+    /**
+     * Text pro zobrazení ve Swingu. Řetězec začínající „&lt;html&gt;“ by JLabel, buňka
+     * tabulky i tooltip vykreslily jako HTML (vč. načítání obrázků ze sítě) – takový
+     * začátek z dat souboru se proto zneškodní.
+     */
     public static String text(Object o) {
-        return o == null ? "" : Objects.toString(o);
+        return o == null ? "" : plain(Objects.toString(o));
     }
 
     public static String orDash(String s) {
-        return s == null || s.isBlank() ? "—" : s;
+        return s == null || s.isBlank() ? "—" : plain(s);
+    }
+
+    /** Neutralizuje HTML režim Swingu: úvodní „&lt;html“ (i za mezerami, bez ohledu na velikost písmen). */
+    public static String plain(String s) {
+        if (s == null) {
+            return "";
+        }
+        int i = 0;
+        while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
+            i++;
+        }
+        if (s.regionMatches(true, i, "<html", 0, 5)) {
+            return s.substring(0, i) + "​" + s.substring(i);
+        }
+        return s;
     }
 
     public static String yesNo(boolean b) {
