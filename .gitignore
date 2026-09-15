@@ -1,0 +1,12 @@
+# výstupy sestavení
+build/
+dist/
+# generuje tools/collect_licenses.py při každém sestavení
+lib/licenses/
+# Inno Setup / editory
+installer/Output/
+*.log
+Thumbs.db
+.vs/
+.idea/
+*.iml
