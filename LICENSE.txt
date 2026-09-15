@@ -18,7 +18,10 @@ Copyright (c) 2026 Milan Knor
    vlastní upravenou verzí a provádět zpětnou analýzu v rozsahu nezbytném
    k ladění takových úprav. Zdrojové kódy MPXJ: https://github.com/joniles/mpxj
 
-4. Program pouze čte soubory a nikam neodesílá žádná data.
+4. Program pouze čte soubory a nikam neodesílá žádná data. Jedinou výjimkou je
+   kontrola aktualizací (Nápověda → Zkontrolovat aktualizace…, případně volitelně
+   při startu), která stáhne pouze veřejný textový soubor s číslem aktuální verze;
+   o Programu ani o otevřených souborech se neodesílá nic.
 
 5. PROGRAM JE POSKYTOVÁN „TAK, JAK JE“, BEZ JAKÉKOLI ZÁRUKY, výslovné či
    předpokládané, včetně záruky prodejnosti, vhodnosti pro určitý účel nebo

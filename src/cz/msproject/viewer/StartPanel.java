@@ -34,7 +34,7 @@ final class StartPanel extends JPanel {
         super(new GridBagLayout());
         this.opener = opener;
         this.chooser = chooser;
-        setBackground(Color.WHITE);
+        setBackground(Theme.BG);
         JPanel card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setOpaque(false);
@@ -45,26 +45,26 @@ final class StartPanel extends JPanel {
         logo.setForeground(Icons.DARK);
         logo.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.add(logo);
-        JLabel sub = new JLabel("Prohlížeč souborů Microsoft Project – MPP, MPT, XML, MPX, MPD. Pouze pro čtení.");
+        JLabel sub = new JLabel(Str.t("Prohlížeč souborů Microsoft Project – MPP, MPT, XML, MPX, MPD. Pouze pro čtení."));
         sub.setFont(Theme.BASE);
         sub.setForeground(Theme.MUTED);
         sub.setBorder(BorderFactory.createEmptyBorder(6, 0, 18, 0));
         sub.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.add(sub);
 
-        JButton open = new JButton("Otevřít soubor…   (Ctrl+O)");
+        JButton open = new JButton(Str.t("Otevřít soubor…   (Ctrl+O)"));
         open.setFont(Theme.BOLD);
         open.setAlignmentX(Component.LEFT_ALIGNMENT);
         open.addActionListener(e -> chooser.run());
         card.add(open);
-        JLabel drop = new JLabel("nebo přetáhněte soubor kamkoli do tohoto okna");
+        JLabel drop = new JLabel(Str.t("nebo přetáhněte soubor kamkoli do tohoto okna"));
         drop.setFont(Theme.SMALL);
         drop.setForeground(Theme.MUTED);
         drop.setBorder(BorderFactory.createEmptyBorder(6, 2, 20, 0));
         drop.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.add(drop);
 
-        JLabel recentTitle = new JLabel("Nedávné soubory");
+        JLabel recentTitle = new JLabel(Str.t("Nedávné soubory"));
         recentTitle.setFont(Theme.BOLD);
         recentTitle.setForeground(Theme.INK);
         recentTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -87,15 +87,15 @@ final class StartPanel extends JPanel {
     void setRecent(List<Path> files) {
         recentBox.removeAll();
         if (files.isEmpty()) {
-            JLabel none = new JLabel("(zatím žádné)");
+            JLabel none = new JLabel(Str.t("(zatím žádné)"));
             none.setFont(Theme.BASE);
             none.setForeground(Theme.MUTED);
             recentBox.add(none);
         }
         for (Path p : files) {
             boolean exists = Files.isRegularFile(p);
-            JLabel link = new JLabel("<html><b>" + Fmt.html(p.getFileName().toString()) + "</b> &nbsp;<span style='color:#64748b'>"
-                    + Fmt.html(String.valueOf(p.getParent())) + (exists ? "" : " – soubor nenalezen") + "</span></html>");
+            JLabel link = new JLabel("<html><b>" + Fmt.html(p.getFileName().toString()) + "</b> &nbsp;<span style='color:" + Theme.MUTED_HEX + "'>"
+                    + Fmt.html(String.valueOf(p.getParent())) + (exists ? "" : Str.t(" – soubor nenalezen")) + "</span></html>");
             link.setFont(Theme.BASE);
             link.setForeground(exists ? Theme.STATUS_DATE : Theme.INACTIVE);
             link.setBorder(BorderFactory.createEmptyBorder(3, 2, 3, 2));

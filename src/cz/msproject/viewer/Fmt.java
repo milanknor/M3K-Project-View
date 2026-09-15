@@ -18,12 +18,13 @@ import java.util.Objects;
 
 /** Formátování hodnot z MPXJ do české podoby. */
 public final class Fmt {
-    public static final Locale CS = Locale.forLanguageTag("cs-CZ");
-    public static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d. M. yyyy", CS);
-    public static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("d. M. yyyy H:mm", CS);
+    /** Národní prostředí uživatelského rozhraní (cs-CZ, nebo en-GB při anglickém jazyce). */
+    public static final Locale CS = Str.locale();
+    public static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern(Str.isEnglish() ? "d MMM yyyy" : "d. M. yyyy", CS);
+    public static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern(Str.isEnglish() ? "d MMM yyyy H:mm" : "d. M. yyyy H:mm", CS);
     public static final DateTimeFormatter MONTH_YEAR = DateTimeFormatter.ofPattern("LLLL yyyy", CS);
     public static final DateTimeFormatter MONTH_SHORT = DateTimeFormatter.ofPattern("LLL", CS);
-    public static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("d. M.", CS);
+    public static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern(Str.isEnglish() ? "d MMM" : "d. M.", CS);
     public static final DateTimeFormatter WEEKDAY_SHORT = DateTimeFormatter.ofPattern("EE", CS);
 
     private static final NumberFormat NUMBER = NumberFormat.getNumberInstance(CS);
@@ -69,6 +70,17 @@ public final class Fmt {
 
     /** Tvary jednotek: [1, 2–4, 5+, necelé číslo]. */
     private static String[] unitForms(TimeUnit u) {
+        if (Str.isEnglish()) {
+            switch (u) {
+                case MINUTES: case ELAPSED_MINUTES: return new String[]{"minute", "minutes", "minutes", "minutes"};
+                case HOURS: case ELAPSED_HOURS: return new String[]{"hour", "hours", "hours", "hours"};
+                case DAYS: case ELAPSED_DAYS: return new String[]{"day", "days", "days", "days"};
+                case WEEKS: case ELAPSED_WEEKS: return new String[]{"week", "weeks", "weeks", "weeks"};
+                case MONTHS: case ELAPSED_MONTHS: return new String[]{"month", "months", "months", "months"};
+                case YEARS: case ELAPSED_YEARS: return new String[]{"year", "years", "years", "years"};
+                default: return new String[]{"%", "%", "%", "%"};
+            }
+        }
         switch (u) {
             case MINUTES: case ELAPSED_MINUTES: return new String[]{"minuta", "minuty", "minut", "minuty"};
             case HOURS: case ELAPSED_HOURS: return new String[]{"hodina", "hodiny", "hodin", "hodiny"};
@@ -103,7 +115,7 @@ public final class Fmt {
             form = f[2];
         }
         String s = number(v) + (u == TimeUnit.PERCENT || u == TimeUnit.ELAPSED_PERCENT ? " %" : " " + form);
-        return u.isElapsed() ? s + " (uplynulé)" : s;
+        return u.isElapsed() ? s + Str.t(" (uplynulé)") : s;
     }
 
     public static String units(Number n) {
@@ -119,13 +131,14 @@ public final class Fmt {
         if (u == null) {
             per = "";
         } else {
+            boolean en = Str.isEnglish();
             switch (u) {
                 case MINUTES: per = "/min"; break;
-                case HOURS: per = "/hod"; break;
-                case DAYS: per = "/den"; break;
-                case WEEKS: per = "/týd"; break;
-                case MONTHS: per = "/měs"; break;
-                case YEARS: per = "/rok"; break;
+                case HOURS: per = en ? "/h" : "/hod"; break;
+                case DAYS: per = en ? "/day" : "/den"; break;
+                case WEEKS: per = en ? "/wk" : "/týd"; break;
+                case MONTHS: per = en ? "/mo" : "/měs"; break;
+                case YEARS: per = en ? "/yr" : "/rok"; break;
                 default: per = "";
             }
         }
@@ -146,13 +159,13 @@ public final class Fmt {
 
     public static String relationTypeLong(RelationType t) {
         if (t == null) {
-            return "konec – začátek";
+            return Str.t("konec – začátek");
         }
         switch (t) {
-            case START_START: return "začátek – začátek";
-            case FINISH_FINISH: return "konec – konec";
-            case START_FINISH: return "začátek – konec";
-            default: return "konec – začátek";
+            case START_START: return Str.t("začátek – začátek");
+            case FINISH_FINISH: return Str.t("konec – konec");
+            case START_FINISH: return Str.t("začátek – konec");
+            default: return Str.t("konec – začátek");
         }
     }
 
@@ -217,7 +230,7 @@ public final class Fmt {
     }
 
     public static String yesNo(boolean b) {
-        return b ? "ano" : "ne";
+        return b ? Str.t("ano") : Str.t("ne");
     }
 
     public static String html(String s) {

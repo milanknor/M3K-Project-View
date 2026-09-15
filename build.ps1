@@ -29,7 +29,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $root = $PSScriptRoot
 Set-Location $root
-$version = "0.1.0"
+$version = "0.2.0"
 $appName = "M3K Project View"
 if ($Installer) { $Package = $true }
 
@@ -104,7 +104,7 @@ if ($Package) {
     Copy-Item "$root\lib\*.jar" $input
 
     $icon = "$root\build\icon.ico"
-    if (-not (Test-Path $icon)) {
+    if (-not (Test-Path $icon) -or -not (Test-Path "$root\build\icon-doc.ico")) {
         Write-Host "Generuji ikonu…"
         & $py "$root\tools\make_icon.py" $icon
         if ($LASTEXITCODE -ne 0) { Write-Warning "Ikonu se nepodařilo vygenerovat, použije se výchozí."; $icon = $null }
@@ -138,6 +138,7 @@ if ($Package) {
     Copy-Item "$root\README.md" "$appDir\CTETE-ME.md"
     Copy-Item "$root\LICENSE.txt" "$appDir\"
     Copy-Item "$root\lib\licenses" "$appDir\licenses" -Recurse
+    if (Test-Path "$root\build\icon-doc.ico") { Copy-Item "$root\build\icon-doc.ico" "$appDir\app\doc.ico" }
 
     $zip = "$dist\M3K-Project-View-Windows.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }

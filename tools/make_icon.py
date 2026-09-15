@@ -57,7 +57,36 @@ def sample(u, v):
     return (0, 0, 0, 0)
 
 
-def pixel(x, y, size):
+PAGE = (255, 255, 255)
+PAGE_EDGE = (0x9a, 0xa0, 0xa6)
+FOLD = 14.0
+
+
+def sample_doc(u, v):
+    """Ikona dokumentu (.mpp v Pruzkumniku): bily list s ohnutym rohem a symbolem M3K."""
+    # list: x 8..56, y 2..62, prava horni cast odriznuta ohybem
+    if not (8.0 <= u < 56.0 and 2.0 <= v < 62.0):
+        return (0, 0, 0, 0)
+    if u > 56.0 - FOLD and v < 2.0 + FOLD and (u - (56.0 - FOLD)) > (v - 2.0):
+        # oblast nad diagonalou ohybu je pruhledna, samotny ohyb sedy trojuhelnik
+        return (0, 0, 0, 0)
+    edge = u < 9.2 or u >= 54.8 or v < 3.2 or v >= 60.8
+    if u > 56.0 - FOLD - 1.2 and v < 2.0 + FOLD + 1.2 and abs((u - (56.0 - FOLD)) - (v - 2.0)) < 1.4:
+        edge = True
+    if u > 56.0 - FOLD and v < 2.0 + FOLD:
+        return PAGE_EDGE + (255,) if edge else (0xe6, 0xe8, 0xeb, 255)
+    if edge:
+        return PAGE_EDGE + (255,)
+    # symbol zmenseny do stredu listu (pruhy + diamant + oblouk v meritku 0.7)
+    su = (u - 32.0) / 0.7 + 32.0
+    sv = (v - 34.0) / 0.7 + 32.0
+    if in_symbol(su, sv):
+        return ORANGE + (255,)
+    return PAGE + (255,)
+
+
+def pixel(x, y, size, fn=None):
+    fn = fn or sample
     scale = 64.0 / size
     r = g = b = a = 0
     n = SS * SS
@@ -65,7 +94,7 @@ def pixel(x, y, size):
         for i in range(SS):
             u = (x + (i + 0.5) / SS) * scale
             v = (y + (j + 0.5) / SS) * scale
-            sr, sg, sb, sa = sample(u, v)
+            sr, sg, sb, sa = fn(u, v)
             r += sr * sa
             g += sg * sa
             b += sb * sa
@@ -75,12 +104,12 @@ def pixel(x, y, size):
     return (r // a, g // a, b // a, a // n)
 
 
-def png(size):
+def png(size, fn=None):
     raw = bytearray()
     for y in range(size):
         raw.append(0)
         for x in range(size):
-            raw.extend(pixel(x, y, size))
+            raw.extend(pixel(x, y, size, fn))
 
     def chunk(kind, data):
         body = kind + data
@@ -90,8 +119,8 @@ def png(size):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(bytes(raw), 9)) + chunk(b"IEND", b"")
 
 
-def ico(sizes):
-    images = [(n, png(n)) for n in sizes]
+def ico(sizes, fn=None):
+    images = [(n, png(n, fn)) for n in sizes]
     header = struct.pack("<HHH", 0, 1, len(images))
     offset = 6 + 16 * len(images)
     entries = b""
@@ -110,7 +139,14 @@ def main():
     png_path = out[:-4] + ".png" if out.lower().endswith(".ico") else out + ".png"
     with open(png_path, "wb") as f:
         f.write(png(256))
+    # ikona dokumentu vedle: <nazev>-doc.ico (pro pripony .mpp apod. v Pruzkumniku)
+    doc = (out[:-4] if out.lower().endswith(".ico") else out) + "-doc.ico"
+    with open(doc, "wb") as f:
+        f.write(ico([16, 24, 32, 48, 64, 128, 256], sample_doc))
+    with open(doc[:-4] + ".png", "wb") as f:
+        f.write(png(256, sample_doc))
     print(out)
+    print(doc)
 
 
 if __name__ == "__main__":

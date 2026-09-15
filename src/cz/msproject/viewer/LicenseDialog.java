@@ -45,7 +45,7 @@ final class LicenseDialog extends JDialog {
     private final JTextArea text = new JTextArea();
 
     LicenseDialog(Window owner) {
-        super(owner, "Licence", ModalityType.APPLICATION_MODAL);
+        super(owner, Str.t("Licence"), ModalityType.APPLICATION_MODAL);
         List<Entry> entries = entries();
         JList<Entry> list = new JList<>(entries.toArray(new Entry[0]));
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -82,9 +82,9 @@ final class LicenseDialog extends JDialog {
         split.setBorder(null);
 
         JPanel root = new JPanel(new BorderLayout());
-        JLabel intro = new JLabel("<html>" + MainWindow.APP_NAME_HTML + " je freeware – zdarma k použití i k dalšímu šíření v nezměněné podobě.<br>"
-                + "Knihovny třetích stran a běhové prostředí Java mají vlastní licence; "
-                + "stejné texty jsou i ve složce <b>licenses</b> vedle programu.</html>");
+        JLabel intro = new JLabel("<html>" + MainWindow.APP_NAME_HTML + Str.t(" je freeware – zdarma k použití i k dalšímu šíření v nezměněné podobě.<br>")
+                + Str.t("Knihovny třetích stran a běhové prostředí Java mají vlastní licence; ")
+                + Str.t("stejné texty jsou i ve složce <b>licenses</b> vedle programu.</html>"));
         intro.setBorder(BorderFactory.createEmptyBorder(10, 12, 8, 12));
         intro.setFont(Theme.BASE);
         root.add(intro, BorderLayout.NORTH);

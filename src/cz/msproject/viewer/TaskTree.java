@@ -18,16 +18,16 @@ import java.util.Set;
 public final class TaskTree {
 
     public enum Filter {
-        ALL("Všechny úkoly"),
-        CRITICAL("Kritické úkoly"),
-        MILESTONES("Milníky"),
-        INCOMPLETE("Nedokončené"),
-        IN_PROGRESS("Rozpracované"),
-        COMPLETED("Dokončené"),
-        LATE("Zpožděné (po termínu)"),
-        SUMMARY("Jen souhrnné úkoly"),
-        WITH_RESOURCES("S přiřazenými zdroji"),
-        INACTIVE("Neaktivní");
+        ALL(Str.t("Všechny úkoly")),
+        CRITICAL(Str.t("Kritické úkoly")),
+        MILESTONES(Str.t("Milníky")),
+        INCOMPLETE(Str.t("Nedokončené")),
+        IN_PROGRESS(Str.t("Rozpracované")),
+        COMPLETED(Str.t("Dokončené")),
+        LATE(Str.t("Zpožděné (po termínu)")),
+        SUMMARY(Str.t("Jen souhrnné úkoly")),
+        WITH_RESOURCES(Str.t("S přiřazenými zdroji")),
+        INACTIVE(Str.t("Neaktivní"));
 
         public final String label;
 
@@ -92,6 +92,8 @@ public final class TaskTree {
         roots.clear();
         all.clear();
         visible.clear();
+        visibleIndex = null;
+        byTask.clear();
         collapsed.clear();
         matchCount = 0;
     }
@@ -289,16 +291,20 @@ public final class TaskTree {
         }
     }
 
+    private final java.util.Map<Task, Row> byTask = new java.util.IdentityHashMap<>();
+    private java.util.Map<Row, Integer> visibleIndex;
+
     public Row find(Task t) {
         if (t == null) {
             return null;
         }
-        for (Row r : all) {
-            if (r.task == t) {
-                return r;
+        if (byTask.size() != all.size()) {
+            byTask.clear();
+            for (Row r : all) {
+                byTask.put(r.task, r);
             }
         }
-        return null;
+        return byTask.get(t);
     }
 
     public Row findByUniqueId(Integer uid) {
@@ -313,8 +319,16 @@ public final class TaskTree {
         return null;
     }
 
+    /** Index řádku mezi viditelnými (−1 = není vidět); mapa se staví líně po každém rebuild(). */
     public int indexOfVisible(Row r) {
-        return visible.indexOf(r);
+        if (visibleIndex == null) {
+            visibleIndex = new java.util.IdentityHashMap<>();
+            for (int i = 0; i < visible.size(); i++) {
+                visibleIndex.put(visible.get(i), i);
+            }
+        }
+        Integer i = visibleIndex.get(r);
+        return i == null ? -1 : i;
     }
 
     private boolean matches(Row r) {
@@ -350,6 +364,7 @@ public final class TaskTree {
 
     public void rebuild() {
         visible.clear();
+        visibleIndex = null;
         matchCount = 0;
         if (isFiltering()) {
             Set<Row> keep = new LinkedHashSet<>();

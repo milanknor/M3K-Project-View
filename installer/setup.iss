@@ -1,10 +1,10 @@
 ﻿; Instalátor M3K Project View (Inno Setup 6).
 ; Vstup: dist\M3K Project View\ (výstup jpackage app-image z build.ps1 -Package).
 ; Výstup: dist\M3K-Project-View-<verze>-Setup.exe
-; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.1.0 installer\setup.iss)
+; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.2.0 installer\setup.iss)
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.0"
 #endif
 #define AppName "M3K Project View"
 #define AppExeName "M3K Project View.exe"
@@ -75,8 +75,21 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: deskto
 [Registry]
 ; ProgID programu – vždy, aby se program nabízel v nabídce „Otevřít v programu".
 Root: HKA; Subkey: "Software\Classes\{#ProgId}"; ValueType: string; ValueData: "{cm:ProgIdName}"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\{#ProgId}\DefaultIcon"; ValueType: string; ValueData: """{app}\{#AppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\{#ProgId}\DefaultIcon"; ValueType: string; ValueData: """{app}\app\doc.ico"",0"
 Root: HKA; Subkey: "Software\Classes\{#ProgId}\shell\open\command"; ValueType: string; ValueData: """{app}\{#AppExeName}"" ""%1"""
+; Kontextová nabídka „Otevřít v M3K Project View“ pro soubory Projectu – bez ohledu na výchozí program.
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpp\shell\M3KProjectView"; ValueType: string; ValueData: "Otevřít v {#AppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpp\shell\M3KProjectView"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#AppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpp\shell\M3KProjectView\command"; ValueType: string; ValueData: """{app}\{#AppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpt\shell\M3KProjectView"; ValueType: string; ValueData: "Otevřít v {#AppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpt\shell\M3KProjectView"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#AppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpt\shell\M3KProjectView\command"; ValueType: string; ValueData: """{app}\{#AppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpx\shell\M3KProjectView"; ValueType: string; ValueData: "Otevřít v {#AppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpx\shell\M3KProjectView"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#AppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpx\shell\M3KProjectView\command"; ValueType: string; ValueData: """{app}\{#AppExeName}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpd\shell\M3KProjectView"; ValueType: string; ValueData: "Otevřít v {#AppName}"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpd\shell\M3KProjectView"; ValueType: string; ValueName: "Icon"; ValueData: """{app}\{#AppExeName}"",0"
+Root: HKA; Subkey: "Software\Classes\SystemFileAssociations\.mpd\shell\M3KProjectView\command"; ValueType: string; ValueData: """{app}\{#AppExeName}"" ""%1"""
 Root: HKA; Subkey: "Software\Classes\.mpp\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKA; Subkey: "Software\Classes\.mpt\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty
 Root: HKA; Subkey: "Software\Classes\.mpx\OpenWithProgids"; ValueType: string; ValueName: "{#ProgId}"; ValueData: ""; Flags: uninsdeletevalue uninsdeletekeyifempty

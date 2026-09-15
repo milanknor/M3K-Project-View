@@ -15,14 +15,14 @@ public final class Labels {
             return "—";
         }
         switch (c) {
-            case AS_SOON_AS_POSSIBLE: return "Co nejdříve";
-            case AS_LATE_AS_POSSIBLE: return "Co nejpozději";
-            case MUST_START_ON: return "Musí začít";
-            case MUST_FINISH_ON: return "Musí skončit";
-            case START_NO_EARLIER_THAN: return "Zahájit nejdříve";
-            case START_NO_LATER_THAN: return "Zahájit nejpozději";
-            case FINISH_NO_EARLIER_THAN: return "Dokončit nejdříve";
-            case FINISH_NO_LATER_THAN: return "Dokončit nejpozději";
+            case AS_SOON_AS_POSSIBLE: return Str.t("Co nejdříve");
+            case AS_LATE_AS_POSSIBLE: return Str.t("Co nejpozději");
+            case MUST_START_ON: return Str.t("Musí začít");
+            case MUST_FINISH_ON: return Str.t("Musí skončit");
+            case START_NO_EARLIER_THAN: return Str.t("Zahájit nejdříve");
+            case START_NO_LATER_THAN: return Str.t("Zahájit nejpozději");
+            case FINISH_NO_EARLIER_THAN: return Str.t("Dokončit nejdříve");
+            case FINISH_NO_LATER_THAN: return Str.t("Dokončit nejpozději");
             default: return c.toString();
         }
     }
@@ -34,25 +34,25 @@ public final class Labels {
         int v = p.getValue();
         String name;
         if (v >= 1000) {
-            name = "Nevyrovnávat";
+            name = Str.t("Nevyrovnávat");
         } else if (v >= 900) {
-            name = "Nejvyšší";
+            name = Str.t("Nejvyšší");
         } else if (v >= 800) {
-            name = "Velmi vysoká";
+            name = Str.t("Velmi vysoká");
         } else if (v >= 700) {
-            name = "Vyšší";
+            name = Str.t("Vyšší");
         } else if (v >= 600) {
-            name = "Vysoká";
+            name = Str.t("Vysoká");
         } else if (v >= 500) {
-            name = "Střední";
+            name = Str.t("Střední");
         } else if (v >= 400) {
-            name = "Nízká";
+            name = Str.t("Nízká");
         } else if (v >= 300) {
-            name = "Nižší";
+            name = Str.t("Nižší");
         } else if (v >= 200) {
-            name = "Velmi nízká";
+            name = Str.t("Velmi nízká");
         } else {
-            name = "Nejnižší";
+            name = Str.t("Nejnižší");
         }
         return name + " (" + v + ")";
     }
@@ -62,9 +62,9 @@ public final class Labels {
             return "—";
         }
         switch (t) {
-            case WORK: return "Pracovní";
-            case MATERIAL: return "Materiálový";
-            case COST: return "Nákladový";
+            case WORK: return Str.t("Pracovní");
+            case MATERIAL: return Str.t("Materiálový");
+            case COST: return Str.t("Nákladový");
             default: return t.toString();
         }
     }
@@ -72,17 +72,17 @@ public final class Labels {
     public static String taskKind(TaskTree.Row r) {
         Task t = r.task;
         if (!t.getActive()) {
-            return "Neaktivní úkol";
+            return Str.t("Neaktivní úkol");
         }
         if (t.getSubprojectFile() != null && !t.getSubprojectFile().isBlank()) {
-            return "Vložený podprojekt";
+            return Str.t("Vložený podprojekt");
         }
         if (r.isSummary()) {
-            return "Souhrnný úkol";
+            return Str.t("Souhrnný úkol");
         }
         if (t.getMilestone()) {
-            return "Milník";
+            return Str.t("Milník");
         }
-        return "Úkol";
+        return Str.t("Úkol");
     }
 }

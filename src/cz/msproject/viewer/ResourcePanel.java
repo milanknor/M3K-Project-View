@@ -27,10 +27,10 @@ import java.util.function.Consumer;
 public final class ResourcePanel extends JPanel {
     private static final long serialVersionUID = 1L;
 
-    private static final String[] RES_COLS = {"ID", "Název zdroje", "Typ", "Iniciály", "Skupina", "Max. jednotky", "Standardní sazba",
-            "Přesčasová sazba", "Náklady na použití", "Práce", "Náklady", "Přetížen", "E-mail"};
+    private static final String[] RES_COLS = {Str.t("ID"), Str.t("Název zdroje"), Str.t("Typ"), Str.t("Iniciály"), Str.t("Skupina"), Str.t("Max. jednotky"), Str.t("Standardní sazba"),
+            Str.t("Přesčasová sazba"), Str.t("Náklady na použití"), Str.t("Práce"), Str.t("Náklady"), Str.t("Přetížen"), Str.t("E-mail")};
     private static final int[] RES_WIDTHS = {44, 220, 90, 60, 110, 90, 120, 120, 110, 100, 110, 70, 180};
-    private static final String[] ASG_COLS = {"ID úkolu", "Úkol", "Jednotky", "Práce", "Zahájení", "Dokončení", "% práce", "Náklady"};
+    private static final String[] ASG_COLS = {Str.t("ID úkolu"), Str.t("Úkol"), Str.t("Jednotky"), Str.t("Práce"), Str.t("Zahájení"), Str.t("Dokončení"), Str.t("% práce"), Str.t("Náklady")};
 
     private final DefaultTableModel resModel = new DefaultTableModel(RES_COLS, 0) {
         private static final long serialVersionUID = 1L;
@@ -51,7 +51,7 @@ public final class ResourcePanel extends JPanel {
     private final JTable resTable = new JTable(resModel);
     private final JTable asgTable = new JTable(asgModel);
     private final JLabel summary = new JLabel(" ");
-    private final JLabel asgTitle = new JLabel("Přiřazení vybraného zdroje");
+    private final JLabel asgTitle = new JLabel(Str.t("Přiřazení vybraného zdroje"));
     private final List<Resource> resources = new ArrayList<>();
     private final List<Task> asgTasks = new ArrayList<>();
     private String currency = "";
@@ -165,12 +165,12 @@ public final class ResourcePanel extends JPanel {
                     Fmt.money(r.getCostPerUse(), currency),
                     Fmt.duration(r.getWork()),
                     Fmt.money(r.getCost(), currency),
-                    r.getOverAllocated() ? "ano" : "",
+                    r.getOverAllocated() ? Str.t("ano") : "",
                     Fmt.text(r.getEmailAddress())});
         }
-        summary.setText(resources.isEmpty() ? "Projekt neobsahuje žádné zdroje."
-                : resources.size() + " zdrojů" + (over > 0 ? "   •   " + over + " přetížených" : "")
-                + "   •   Dvojklik na přiřazení přejde na úkol v Ganttově diagramu.");
+        summary.setText(resources.isEmpty() ? Str.t("Projekt neobsahuje žádné zdroje.")
+                : resources.size() + Str.t(" zdrojů") + (over > 0 ? "   •   " + over + Str.t(" přetížených") : "")
+                + Str.t("   •   Dvojklik na přiřazení přejde na úkol v Ganttově diagramu."));
         showAssignments();
     }
 

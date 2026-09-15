@@ -277,6 +277,85 @@ public final class SelfTest {
         }
         check(total > 0, "Nebyly zadány žádné testovací soubory");
 
+        // překlady, kontrola verze
+        check(Str.dictionarySize() > 300, "Slovník překladů je podezřele malý: " + Str.dictionarySize());
+        check(Str.isEnglish() ? Str.t("Soubor").equals("File") : Str.t("Soubor").equals("Soubor"), "Str.t nevrací očekávaný text");
+        check(Str.t("__neexistuje__").equals("__neexistuje__"), "Str.t nevrací nepřeložený text beze změny");
+        check(UpdateCheck.compare("0.2.0", "0.1.0") > 0 && UpdateCheck.compare("0.10.0", "0.9.9") > 0 && UpdateCheck.compare("1.0", "1.0.0") == 0
+                && UpdateCheck.compare("0.1.0", "0.2.0") < 0, "Porovnání verzí nesedí");
+        UpdateCheck.Result ur = UpdateCheck.parse("99.0.0\nhttps://example.org/x\n");
+        check(ur.newer() && ur.latest().equals("99.0.0") && ur.downloadUrl().equals("https://example.org/x"), "Parsování odpovědi kontroly verze nesedí");
+        check(!UpdateCheck.parse(MainWindow.VERSION).newer(), "Stejná verze hlášena jako novější");
+
+        // výkon: syntetický projekt s 10 000 úkoly – načtení stromu, sloupce, řazení, filtr, text buněk
+        {
+            long t0 = System.nanoTime();
+            ProjectFile big = new ProjectFile();
+            big.getProjectProperties().setStartDate(java.time.LocalDateTime.of(2026, 1, 5, 8, 0));
+            org.mpxj.ProjectCalendar cal = big.addDefaultBaseCalendar();
+            big.setDefaultCalendar(cal);
+            org.mpxj.Resource res = big.addResource();
+            res.setName("Zdroj A");
+            Task summary = null;
+            Task prev = null;
+            int n = 10_000;
+            for (int i = 1; i <= n; i++) {
+                Task t;
+                if (i % 50 == 1) {
+                    summary = big.addTask();
+                    summary.setName("Fáze " + (i / 50 + 1));
+                    t = summary;
+                } else {
+                    t = summary.addTask();
+                    t.setName("Úkol " + i);
+                    java.time.LocalDateTime s = java.time.LocalDateTime.of(2026, 1, 5, 8, 0).plusDays(i % 400);
+                    t.setStart(s);
+                    t.setFinish(s.plusDays(3));
+                    t.setDuration(org.mpxj.Duration.getInstance(3, org.mpxj.TimeUnit.DAYS));
+                    t.setPercentageComplete(i % 101);
+                    if (i % 7 == 0) {
+                        t.setText(1, "vlastní " + i);
+                    }
+                    if (prev != null && i % 3 == 0) {
+                        t.addPredecessor(new org.mpxj.Relation.Builder().predecessorTask(prev).type(org.mpxj.RelationType.FINISH_START));
+                    }
+                    if (i % 5 == 0) {
+                        t.addResourceAssignment(res);
+                    }
+                    prev = t;
+                }
+            }
+            long t1 = System.nanoTime();
+            TaskTree bigTree = new TaskTree();
+            bigTree.load(big);
+            long t2 = System.nanoTime();
+            check(bigTree.size() == n, "Syntetický projekt: špatný počet řádků " + bigTree.size());
+            Columns bigCols = new Columns();
+            bigCols.setProject(big);
+            long t3 = System.nanoTime();
+            check(!bigCols.custom().isEmpty(), "Syntetický projekt: vlastní pole Text1 nebylo nalezeno");
+            bigTree.setOrder(bigCols.comparator(Columns.NAME, false));
+            bigTree.setQuery("9");
+            long t4 = System.nanoTime();
+            bigTree.setQuery("");
+            bigTree.setOrder(null);
+            TaskTableModel bigModel = new TaskTableModel(bigTree, bigCols);
+            bigModel.setShown(bigCols.all());
+            for (int r = 0; r < bigModel.getRowCount(); r += 97) {
+                for (int c = 0; c < bigModel.getColumnCount(); c++) {
+                    bigModel.getValueAt(r, c);
+                }
+            }
+            for (int r = 0; r < bigModel.getRowCount(); r += 1000) {
+                check(bigTree.find(bigTree.visible().get(r).task) == bigTree.visible().get(r), "find() nevrací řádek");
+                check(bigTree.indexOfVisible(bigTree.visible().get(r)) == r, "indexOfVisible() nesedí");
+            }
+            long t5 = System.nanoTime();
+            System.out.printf(java.util.Locale.ROOT, "  výkon 10 000 úkolů: sestavení %.2f s, strom %.2f s, sloupce %.2f s, řazení+hledání %.2f s, buňky %.2f s%n",
+                    (t1 - t0) / 1e9, (t2 - t1) / 1e9, (t3 - t2) / 1e9, (t4 - t3) / 1e9, (t5 - t4) / 1e9);
+            check((t2 - t1) < 5e9 && (t3 - t2) < 10e9 && (t4 - t3) < 5e9, "Syntetický projekt: příliš pomalé");
+        }
+
         Path bad = Files.createTempFile("msproject-viewer-invalid-", ".mpp");
         try {
             Files.writeString(bad, "toto není soubor MPP");
@@ -382,6 +461,16 @@ public final class SelfTest {
                 w.table.setRowSelectionInterval(0, 0);
                 w.details.tabs().setSelectedIndex(0);
                 w.validate();
+                // téma: tmavý režim a škálování mění rozměry a barvy a jde vrátit
+                int rowBefore = Theme.ROW;
+                boolean darkBefore = Theme.DARK;
+                float scaleBefore = Theme.SCALE;
+                Theme.init(true, scaleBefore + 0.3f);
+                check(Theme.DARK && Theme.ROW > rowBefore && !Theme.BG.equals(java.awt.Color.WHITE) && Theme.HTML_BODY.contains(Theme.INK_HEX), "Tmavé téma se nenastavilo");
+                Theme.init(false, 1f);
+                check(!Theme.DARK && Theme.BG.equals(java.awt.Color.WHITE), "Světlé téma se nenastavilo");
+                Theme.init(darkBefore, scaleBefore);
+                check(Theme.ROW == rowBefore && Theme.DARK == darkBefore, "Návrat na původní téma selhal");
                 BufferedImage img = w.renderImage();
                 check(img.getWidth() > 100 && img.getHeight() > Theme.HEADER, "Prázdný obrázek");
                 ImageIO.write(img, "png", out.toFile());

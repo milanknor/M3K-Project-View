@@ -28,20 +28,20 @@ public record TaskFilter(String name, String resource, LocalDate from, LocalDate
     public String describe() {
         StringBuilder sb = new StringBuilder();
         if (resource != null && !resource.isBlank()) {
-            sb.append("zdroj „").append(resource).append("“");
+            sb.append(Str.t("zdroj „")).append(resource).append("“");
         }
         if (from != null || to != null) {
-            sb.append(sb.length() > 0 ? ", " : "").append("období ").append(from == null ? "…" : Fmt.DATE.format(from))
+            sb.append(sb.length() > 0 ? ", " : "").append(Str.t("období ")).append(from == null ? "…" : Fmt.DATE.format(from))
                     .append(" – ").append(to == null ? "…" : Fmt.DATE.format(to));
         }
         if (pctMin != null || pctMax != null) {
-            sb.append(sb.length() > 0 ? ", " : "").append("dokončeno ").append(pctMin == null ? 0 : pctMin).append("–").append(pctMax == null ? 100 : pctMax).append(" %");
+            sb.append(sb.length() > 0 ? ", " : "").append(Str.t("dokončeno ")).append(pctMin == null ? 0 : pctMin).append("–").append(pctMax == null ? 100 : pctMax).append(" %");
         }
         if (text != null && !text.isBlank()) {
-            sb.append(sb.length() > 0 ? ", " : "").append("text „").append(text).append("“");
+            sb.append(sb.length() > 0 ? ", " : "").append(Str.t("text „")).append(text).append("“");
         }
         if (leafOnly) {
-            sb.append(sb.length() > 0 ? ", " : "").append("bez souhrnů");
+            sb.append(sb.length() > 0 ? ", " : "").append(Str.t("bez souhrnů"));
         }
         return sb.toString();
     }

@@ -42,9 +42,9 @@ public final class TimelinePanel extends JPanel {
     private record Item(Task task, LocalDateTime start, LocalDateTime finish, boolean milestone, int lane, int colorIndex) {
     }
 
-    private final JComboBox<String> levelBox = new JComboBox<>(new String[]{"Úroveň 1", "Úrovně 1–2", "Úrovně 1–3", "Všechny souhrny"});
-    private final JCheckBox milestonesBox = new JCheckBox("Milníky", true);
-    private final JCheckBox criticalBox = new JCheckBox("Jen kritické", false);
+    private final JComboBox<String> levelBox = new JComboBox<>(new String[]{Str.t("Úroveň 1"), Str.t("Úrovně 1–2"), Str.t("Úrovně 1–3"), Str.t("Všechny souhrny")});
+    private final JCheckBox milestonesBox = new JCheckBox(Str.t("Milníky"), true);
+    private final JCheckBox criticalBox = new JCheckBox(Str.t("Jen kritické"), false);
     private final JLabel summary = new JLabel(" ");
     private final Canvas canvas = new Canvas();
     private final List<Item> items = new ArrayList<>();
@@ -60,7 +60,7 @@ public final class TimelinePanel extends JPanel {
     public TimelinePanel() {
         super(new java.awt.BorderLayout());
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
-        JLabel l = new JLabel("Souhrnné úkoly:");
+        JLabel l = new JLabel(Str.t("Souhrnné úkoly:"));
         l.setFont(Theme.BASE);
         l.setForeground(Theme.MUTED);
         bar.add(l);
@@ -73,7 +73,7 @@ public final class TimelinePanel extends JPanel {
         criticalBox.setFont(Theme.BASE);
         criticalBox.addActionListener(e -> rebuild());
         bar.add(criticalBox);
-        JButton png = new JButton("Uložit jako PNG…");
+        JButton png = new JButton(Str.t("Uložit jako PNG…"));
         png.setFont(Theme.BASE);
         png.addActionListener(e -> {
             if (exporter != null) {
@@ -88,7 +88,7 @@ public final class TimelinePanel extends JPanel {
         JScrollPane sp = new JScrollPane(canvas);
         sp.setBorder(null);
         add(sp, java.awt.BorderLayout.CENTER);
-        JLabel hint = new JLabel("Bloky = souhrnné úkoly zvolené úrovně (dvojklik přejde na úkol v Ganttově diagramu), kosočtverce = milníky, červeně kritické.");
+        JLabel hint = new JLabel(Str.t("Bloky = souhrnné úkoly zvolené úrovně (dvojklik přejde na úkol v Ganttově diagramu), kosočtverce = milníky, červeně kritické."));
         hint.setFont(Theme.SMALL);
         hint.setForeground(Theme.MUTED);
         hint.setBorder(BorderFactory.createEmptyBorder(4, 12, 6, 12));
@@ -206,7 +206,7 @@ public final class TimelinePanel extends JPanel {
             items.add(new Item(m.task(), m.start(), m.finish(), true, row, 0));
         }
         milestoneRows = milestones.isEmpty() ? 0 : 3;
-        summary.setText(blocks.size() + " bloků · " + milestones.size() + " milníků · " + Fmt.DATE.format(min) + " – " + Fmt.DATE.format(max));
+        summary.setText(blocks.size() + Str.t(" bloků · ") + milestones.size() + Str.t(" milníků · ") + Fmt.DATE.format(min) + " – " + Fmt.DATE.format(max));
         canvas.revalidate();
         canvas.repaint();
     }
@@ -304,12 +304,12 @@ public final class TimelinePanel extends JPanel {
         void paintTimeline(Graphics2D g, int width, int height) {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setColor(Color.WHITE);
+            g.setColor(Theme.BG);
             g.fillRect(0, 0, width, height);
             if (items.isEmpty()) {
                 g.setFont(Theme.BASE);
                 g.setColor(Theme.MUTED);
-                g.drawString(project == null ? "Otevřete soubor Microsoft Project." : "Nic k zobrazení – zvolte jinou úroveň nebo zapněte milníky.", 20, 30);
+                g.drawString(project == null ? Str.t("Otevřete soubor Microsoft Project.") : Str.t("Nic k zobrazení – zvolte jinou úroveň nebo zapněte milníky."), 20, 30);
                 return;
             }
             // osa měsíců
@@ -369,7 +369,7 @@ public final class TimelinePanel extends JPanel {
                     s = s.substring(0, s.length() - 2) + "…";
                 }
                 if (b - a > 30) {
-                    g.setColor(Color.WHITE);
+                    g.setColor(Theme.BG);
                     g.drawString(s, a + 6, y0 + (LANE - 12 + fm.getAscent() - fm.getDescent()) / 2);
                 }
             }

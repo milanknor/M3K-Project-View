@@ -31,17 +31,17 @@ public final class ProjectInfoPanel extends JPanel {
 
     public void setProject(ProjectFile p, Path path, TaskTree tree) {
         if (p == null) {
-            pane.setText("<html><body style='font-family:Segoe UI;font-size:10pt;color:#64748b'>Není otevřen žádný projekt.</body></html>");
+            pane.setText("<html><body style='" + Theme.HTML_MUTED + "'>Není otevřen žádný projekt.</body></html>");
             return;
         }
         ProjectProperties pp = p.getProjectProperties();
         String currency = Fmt.text(pp.getCurrencySymbol());
-        StringBuilder h = new StringBuilder("<html><body style='font-family:Segoe UI;font-size:10pt;color:#1e293b'>");
+        StringBuilder h = new StringBuilder("<html><body style='" + Theme.HTML_BODY + "'>");
         String title = firstNonBlank(pp.getProjectTitle(), pp.getName(), path == null ? null : path.getFileName().toString());
         h.append("<div style='font-size:14pt;font-weight:bold;margin-bottom:8px'>").append(Fmt.html(title)).append("</div>");
 
-        section(h, "Soubor");
-        row(h, "Cesta", path == null ? "—" : path.toAbsolutePath().toString());
+        section(h, Str.t("Soubor"));
+        row(h, Str.t("Cesta"), path == null ? "—" : path.toAbsolutePath().toString());
         String size = "—";
         if (path != null) {
             try {
@@ -50,52 +50,52 @@ public final class ProjectInfoPanel extends JPanel {
                 size = "—";
             }
         }
-        row(h, "Velikost", size);
+        row(h, Str.t("Velikost"), size);
         String format = Fmt.orDash(pp.getFileType());
         if (pp.getMppFileType() != null) {
             format += " (MPP" + pp.getMppFileType() + mppVersion(pp.getMppFileType()) + ")";
         }
-        row(h, "Formát", format);
-        row(h, "Aplikace", Fmt.orDash(firstNonBlank(pp.getFullApplicationName(), pp.getFileApplication()))
-                + (pp.getApplicationVersion() == null ? "" : " · verze " + pp.getApplicationVersion()));
-        row(h, "Vytvořeno", Fmt.dateTime(pp.getCreationDate()));
-        row(h, "Naposledy uloženo", Fmt.dateTime(pp.getLastSaved()));
+        row(h, Str.t("Formát"), format);
+        row(h, Str.t("Aplikace"), Fmt.orDash(firstNonBlank(pp.getFullApplicationName(), pp.getFileApplication()))
+                + (pp.getApplicationVersion() == null ? "" : Str.t(" · verze ") + pp.getApplicationVersion()));
+        row(h, Str.t("Vytvořeno"), Fmt.dateTime(pp.getCreationDate()));
+        row(h, Str.t("Naposledy uloženo"), Fmt.dateTime(pp.getLastSaved()));
 
-        section(h, "Projekt");
-        row(h, "Název", Fmt.orDash(pp.getName()));
-        row(h, "Titul", Fmt.orDash(pp.getProjectTitle()));
-        row(h, "Předmět", Fmt.orDash(pp.getSubject()));
-        row(h, "Autor", Fmt.orDash(pp.getAuthor()));
-        row(h, "Manažer", Fmt.orDash(pp.getManager()));
-        row(h, "Společnost", Fmt.orDash(pp.getCompany()));
-        row(h, "Kategorie", Fmt.orDash(pp.getCategory()));
-        row(h, "Klíčová slova", Fmt.orDash(pp.getKeywords()));
-        row(h, "Komentář", Fmt.orDash(pp.getComments()));
+        section(h, Str.t("Projekt"));
+        row(h, Str.t("Název"), Fmt.orDash(pp.getName()));
+        row(h, Str.t("Titul"), Fmt.orDash(pp.getProjectTitle()));
+        row(h, Str.t("Předmět"), Fmt.orDash(pp.getSubject()));
+        row(h, Str.t("Autor"), Fmt.orDash(pp.getAuthor()));
+        row(h, Str.t("Manažer"), Fmt.orDash(pp.getManager()));
+        row(h, Str.t("Společnost"), Fmt.orDash(pp.getCompany()));
+        row(h, Str.t("Kategorie"), Fmt.orDash(pp.getCategory()));
+        row(h, Str.t("Klíčová slova"), Fmt.orDash(pp.getKeywords()));
+        row(h, Str.t("Komentář"), Fmt.orDash(pp.getComments()));
 
-        section(h, "Harmonogram");
-        row(h, "Zahájení projektu", Fmt.dateTime(pp.getStartDate()));
-        row(h, "Dokončení projektu", Fmt.dateTime(pp.getFinishDate()));
-        row(h, "Datum stavu", Fmt.dateTime(pp.getStatusDate()));
-        row(h, "Aktuální datum", Fmt.dateTime(pp.getCurrentDate()));
-        row(h, "Plánovat od", pp.getScheduleFrom() == null ? "—" : (pp.getScheduleFrom().toString().equals("START") ? "data zahájení" : "data dokončení"));
-        row(h, "Trvání", Fmt.duration(pp.getDuration()));
-        row(h, "Práce", Fmt.duration(pp.getWork()));
-        row(h, "Náklady", Fmt.money(pp.getCost(), currency));
-        row(h, "Dokončeno", Fmt.percent(pp.getPercentageComplete()));
-        row(h, "Základní plán uložen", Fmt.dateTime(pp.getBaselineDate()));
+        section(h, Str.t("Harmonogram"));
+        row(h, Str.t("Zahájení projektu"), Fmt.dateTime(pp.getStartDate()));
+        row(h, Str.t("Dokončení projektu"), Fmt.dateTime(pp.getFinishDate()));
+        row(h, Str.t("Datum stavu"), Fmt.dateTime(pp.getStatusDate()));
+        row(h, Str.t("Aktuální datum"), Fmt.dateTime(pp.getCurrentDate()));
+        row(h, Str.t("Plánovat od"), pp.getScheduleFrom() == null ? "—" : (pp.getScheduleFrom().toString().equals("START") ? Str.t("data zahájení") : Str.t("data dokončení")));
+        row(h, Str.t("Trvání"), Fmt.duration(pp.getDuration()));
+        row(h, Str.t("Práce"), Fmt.duration(pp.getWork()));
+        row(h, Str.t("Náklady"), Fmt.money(pp.getCost(), currency));
+        row(h, Str.t("Dokončeno"), Fmt.percent(pp.getPercentageComplete()));
+        row(h, Str.t("Základní plán uložen"), Fmt.dateTime(pp.getBaselineDate()));
         ProjectCalendar cal = null;
         try {
             cal = p.getDefaultCalendar();
         } catch (RuntimeException ignored) {
             cal = null;
         }
-        row(h, "Výchozí kalendář", cal == null ? "—" : Fmt.orDash(cal.getName()));
-        row(h, "Hodin denně / týdně", (pp.getMinutesPerDay() == null ? "—" : Fmt.number(pp.getMinutesPerDay() / 60.0))
+        row(h, Str.t("Výchozí kalendář"), cal == null ? "—" : Fmt.orDash(cal.getName()));
+        row(h, Str.t("Hodin denně / týdně"), (pp.getMinutesPerDay() == null ? "—" : Fmt.number(pp.getMinutesPerDay() / 60.0))
                 + " / " + (pp.getMinutesPerWeek() == null ? "—" : Fmt.number(pp.getMinutesPerWeek() / 60.0)));
-        row(h, "Dnů v měsíci", pp.getDaysPerMonth() == null ? "—" : String.valueOf(pp.getDaysPerMonth()));
-        row(h, "Měna", Fmt.orDash(firstNonBlank(pp.getCurrencyCode(), pp.getCurrencySymbol())));
+        row(h, Str.t("Dnů v měsíci"), pp.getDaysPerMonth() == null ? "—" : String.valueOf(pp.getDaysPerMonth()));
+        row(h, Str.t("Měna"), Fmt.orDash(firstNonBlank(pp.getCurrencyCode(), pp.getCurrencySymbol())));
 
-        section(h, "Statistika");
+        section(h, Str.t("Statistika"));
         int tasks = 0;
         int milestones = 0;
         int summaries = 0;
@@ -122,20 +122,20 @@ public final class ProjectInfoPanel extends JPanel {
                 }
             }
         }
-        row(h, "Úkolů celkem", String.valueOf(tasks));
-        row(h, "z toho souhrnných", String.valueOf(summaries));
-        row(h, "z toho milníků", String.valueOf(milestones));
-        row(h, "Kritických", String.valueOf(critical));
-        row(h, "Dokončených", String.valueOf(done));
-        row(h, "Neaktivních", String.valueOf(inactive));
+        row(h, Str.t("Úkolů celkem"), String.valueOf(tasks));
+        row(h, Str.t("z toho souhrnných"), String.valueOf(summaries));
+        row(h, Str.t("z toho milníků"), String.valueOf(milestones));
+        row(h, Str.t("Kritických"), String.valueOf(critical));
+        row(h, Str.t("Dokončených"), String.valueOf(done));
+        row(h, Str.t("Neaktivních"), String.valueOf(inactive));
         int res = 0;
         for (org.mpxj.Resource r : p.getResources()) {
             if (r.getName() != null && !r.getName().isBlank()) {
                 res++;
             }
         }
-        row(h, "Zdrojů", String.valueOf(res));
-        row(h, "Přiřazení", String.valueOf(p.getResourceAssignments().size()));
+        row(h, Str.t("Zdrojů"), String.valueOf(res));
+        row(h, Str.t("Přiřazení"), String.valueOf(p.getResourceAssignments().size()));
         StringBuilder cals = new StringBuilder();
         for (ProjectCalendar c : p.getCalendars()) {
             if (c.getName() == null) {
@@ -146,7 +146,7 @@ public final class ProjectInfoPanel extends JPanel {
             }
             cals.append(c.getName());
         }
-        row(h, "Kalendáře", Fmt.orDash(cals.toString()));
+        row(h, Str.t("Kalendáře"), Fmt.orDash(cals.toString()));
         StringBuilder subs = new StringBuilder();
         for (Task t : p.getTasks()) {
             if (t.getSubprojectFile() != null && !t.getSubprojectFile().isBlank()) {
@@ -155,7 +155,7 @@ public final class ProjectInfoPanel extends JPanel {
             }
         }
         if (subs.length() > 0) {
-            section(h, "Vložené podprojekty (otevřou se samostatně přes odkaz v detailu úkolu)");
+            section(h, Str.t("Vložené podprojekty (otevřou se samostatně přes odkaz v detailu úkolu)"));
             h.append("<tr><td colspan='2'>").append(subs).append("</td></tr>");
         }
         h.append("</table></body></html>");
@@ -165,10 +165,10 @@ public final class ProjectInfoPanel extends JPanel {
 
     private static String mppVersion(Integer type) {
         switch (type) {
-            case 8: return " – Project 98";
+            case 8: return Str.t(" – Project 98");
             case 9: return " – Project 2000/2002";
             case 12: return " – Project 2003/2007";
-            case 14: return " – Project 2010 a novější";
+            case 14: return Str.t(" – Project 2010 a novější");
             default: return "";
         }
     }
@@ -188,13 +188,13 @@ public final class ProjectInfoPanel extends JPanel {
         if (tableOpen) {
             h.append("</table>");
         }
-        h.append("<div style='font-size:11pt;font-weight:bold;color:#1f4e8c;margin-top:10px;margin-bottom:2px'>")
+        h.append("<div style='font-size:11pt;font-weight:bold;color:" + Theme.ACCENT_HEX + ";margin-top:10px;margin-bottom:2px'>")
                 .append(title).append("</div><table cellspacing='0' cellpadding='2'>");
         tableOpen = true;
     }
 
     private static void row(StringBuilder h, String label, String value) {
-        h.append("<tr><td style='color:#64748b;padding-right:14px;white-space:nowrap'>").append(label)
+        h.append("<tr><td style='color:" + Theme.MUTED_HEX + ";padding-right:14px;white-space:nowrap'>").append(label)
                 .append("</td><td>").append(Fmt.html(value)).append("</td></tr>");
     }
 }

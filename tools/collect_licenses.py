@@ -43,6 +43,7 @@ LIBRARIES = {
     "jaxb-core": ("JAXB Core", "Eclipse Distribution License 1.0 (BSD)", "https://github.com/eclipse-ee4j/jaxb-ri"),
     "jaxb-runtime": ("JAXB Runtime", "Eclipse Distribution License 1.0 (BSD)", "https://github.com/eclipse-ee4j/jaxb-ri"),
     "txw2": ("TXW2", "Eclipse Distribution License 1.0 (BSD)", "https://github.com/eclipse-ee4j/jaxb-ri"),
+    "flatlaf": ("FlatLaf (vzhled uzivatelskeho rozhrani)", "Apache License 2.0", "https://www.formdev.com/flatlaf/"),
 }
 
 ENTRY_RE = re.compile(r"^META-INF/(.*/)?(LICENSE|NOTICE|COPYING)[^/]*$", re.IGNORECASE)

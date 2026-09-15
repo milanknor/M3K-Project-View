@@ -51,8 +51,8 @@ public final class CalendarPanel extends JPanel {
     private final DefaultListModel<String> listModel = new DefaultListModel<>();
     private final JList<String> list = new JList<>(listModel);
     private final List<ProjectCalendar> calendars = new ArrayList<>();
-    private final DefaultTableModel weekModel = readOnly("Den", "Typ", "Pracovní doba", "Hodin");
-    private final DefaultTableModel exceptionModel = readOnly("Název", "Od", "Do", "Pracovní", "Pracovní doba");
+    private final DefaultTableModel weekModel = readOnly(Str.t("Den"), Str.t("Typ"), Str.t("Pracovní doba"), Str.t("Hodin"));
+    private final DefaultTableModel exceptionModel = readOnly(Str.t("Název"), Str.t("Od"), Str.t("Do"), Str.t("Pracovní"), Str.t("Pracovní doba"));
     private final JTable weekTable = new JTable(weekModel);
     private final JTable exceptionTable = new JTable(exceptionModel);
     private final JLabel title = new JLabel(" ");
@@ -94,10 +94,10 @@ public final class CalendarPanel extends JPanel {
         title.setBorder(BorderFactory.createEmptyBorder(8, 12, 4, 12));
 
         JPanel week = new JPanel(new BorderLayout());
-        week.add(section("Pracovní týden"), BorderLayout.NORTH);
+        week.add(section(Str.t("Pracovní týden")), BorderLayout.NORTH);
         week.add(new JScrollPane(weekTable), BorderLayout.CENTER);
         JPanel exceptions = new JPanel(new BorderLayout());
-        exceptions.add(section("Výjimky (svátky, mimořádné dny)"), BorderLayout.NORTH);
+        exceptions.add(section(Str.t("Výjimky (svátky, mimořádné dny)")), BorderLayout.NORTH);
         exceptions.add(new JScrollPane(exceptionTable), BorderLayout.CENTER);
         JSplitPane tables = new JSplitPane(JSplitPane.VERTICAL_SPLIT, week, exceptions);
         tables.setResizeWeight(0.45);
@@ -107,7 +107,7 @@ public final class CalendarPanel extends JPanel {
         JPanel nav = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 4));
         JButton prev = new JButton("<");
         JButton next = new JButton(">");
-        JButton today = new JButton("Dnes");
+        JButton today = new JButton(Str.t("Dnes"));
         prev.addActionListener(e -> setMonth(month.minusMonths(1)));
         next.addActionListener(e -> setMonth(month.plusMonths(1)));
         today.addActionListener(e -> setMonth(YearMonth.now()));
@@ -117,13 +117,13 @@ public final class CalendarPanel extends JPanel {
         nav.add(monthLabel);
         nav.add(next);
         nav.add(today);
-        monthPanel.add(section("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek"), BorderLayout.NORTH);
+        monthPanel.add(section(Str.t("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek")), BorderLayout.NORTH);
         monthPanel.add(nav, BorderLayout.SOUTH);
         monthPanel.add(grid, BorderLayout.CENTER);
         // navigace nahoře, mřížka pod ní
         monthPanel.remove(nav);
         JPanel monthTop = new JPanel(new BorderLayout());
-        monthTop.add(section("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek"), BorderLayout.NORTH);
+        monthTop.add(section(Str.t("Měsíc – šedě nepracovní dny, oranžově výjimky, modře dnešek")), BorderLayout.NORTH);
         monthTop.add(nav, BorderLayout.CENTER);
         monthPanel.removeAll();
         monthPanel.add(monthTop, BorderLayout.NORTH);
@@ -185,7 +185,7 @@ public final class CalendarPanel extends JPanel {
             }
             String label = c.getName();
             if (c == def) {
-                label += "   (výchozí)";
+                label += Str.t("   (výchozí)");
                 selected = calendars.size();
             } else if (c.isDerived() && c.getParent() != null) {
                 label += "   ← " + c.getParent().getName();
@@ -248,10 +248,10 @@ public final class CalendarPanel extends JPanel {
         ProjectCalendar c = current;
         StringBuilder t = new StringBuilder(Fmt.text(c.getName()));
         if (c.isDerived() && c.getParent() != null) {
-            t.append("   —   odvozený z „").append(c.getParent().getName()).append("“");
+            t.append(Str.t("   —   odvozený z „")).append(c.getParent().getName()).append("“");
         }
         if (c.getMinutesPerDay() != null) {
-            t.append("   —   ").append(Fmt.number(c.getMinutesPerDay() / 60.0)).append(" h/den");
+            t.append("   —   ").append(Fmt.number(c.getMinutesPerDay() / 60.0)).append(Str.t(" h/den"));
         }
         title.setText(t.toString());
         double weekHours = 0;
@@ -259,12 +259,12 @@ public final class CalendarPanel extends JPanel {
             String type;
             try {
                 switch (c.getDayType(d)) {
-                    case WORKING: type = "pracovní"; break;
-                    case NON_WORKING: type = "nepracovní"; break;
-                    default: type = c.isWorkingDay(d) ? "pracovní (výchozí)" : "nepracovní (výchozí)";
+                    case WORKING: type = Str.t("pracovní"); break;
+                    case NON_WORKING: type = Str.t("nepracovní"); break;
+                    default: type = c.isWorkingDay(d) ? Str.t("pracovní (výchozí)") : Str.t("nepracovní (výchozí)");
                 }
             } catch (RuntimeException ex) {
-                type = c.isWorkingDay(d) ? "pracovní" : "nepracovní";
+                type = c.isWorkingDay(d) ? Str.t("pracovní") : Str.t("nepracovní");
             }
             ProjectCalendarHours hours = null;
             try {
@@ -276,7 +276,7 @@ public final class CalendarPanel extends JPanel {
             weekHours += h;
             weekModel.addRow(new Object[]{d.getDisplayName(TextStyle.FULL_STANDALONE, Fmt.CS), type, ranges(hours), h == 0 ? "" : Fmt.number(h)});
         }
-        weekModel.addRow(new Object[]{"Týden celkem", "", "", Fmt.number(weekHours)});
+        weekModel.addRow(new Object[]{Str.t("Týden celkem"), "", "", Fmt.number(weekHours)});
         List<ProjectCalendarException> exceptions;
         try {
             exceptions = c.getExpandedCalendarExceptions();
@@ -295,7 +295,7 @@ public final class CalendarPanel extends JPanel {
                 hours = null;
             }
             exceptionModel.addRow(new Object[]{Fmt.orDash(ex.getName()), Fmt.DATE.format(ex.getFromDate()),
-                    ex.getToDate() == null ? "" : Fmt.DATE.format(ex.getToDate()), ex.getWorking() ? "ano" : "ne", ex.getWorking() ? ranges(hours) : "—"});
+                    ex.getToDate() == null ? "" : Fmt.DATE.format(ex.getToDate()), ex.getWorking() ? Str.t("ano") : Str.t("ne"), ex.getWorking() ? ranges(hours) : "—"});
             if (++shown >= 2000) {
                 break;
             }
@@ -392,7 +392,7 @@ public final class CalendarPanel extends JPanel {
 
         MonthGrid() {
             setOpaque(true);
-            setBackground(Color.WHITE);
+            setBackground(Theme.BG);
             setToolTipText("");
             setPreferredSize(new Dimension(320, 260));
         }
@@ -433,7 +433,7 @@ public final class CalendarPanel extends JPanel {
                 hours = "";
             }
             return "<html><b>" + Fmt.DATE.format(d) + "</b> " + d.getDayOfWeek().getDisplayName(TextStyle.FULL, Fmt.CS)
-                    + "<br>" + (working ? "pracovní den" + (hours.isEmpty() ? "" : ": " + hours) : "nepracovní den")
+                    + "<br>" + (working ? Str.t("pracovní den") + (hours.isEmpty() ? "" : ": " + hours) : Str.t("nepracovní den"))
                     + (name == null || name.isBlank() ? "" : "<br>Výjimka: " + Fmt.html(name)) + "</html>";
         }
 
@@ -443,7 +443,7 @@ public final class CalendarPanel extends JPanel {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             int w = getWidth();
             int h = getHeight();
-            g.setColor(Color.WHITE);
+            g.setColor(Theme.BG);
             g.fillRect(0, 0, w, h);
             int cw = Math.max(1, w / 7);
             int header = 22;
@@ -479,7 +479,7 @@ public final class CalendarPanel extends JPanel {
                         working = d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY;
                     }
                     boolean exception = isException(d);
-                    Color bg = working ? Color.WHITE : Theme.WEEKEND;
+                    Color bg = working ? Theme.BG : Theme.WEEKEND;
                     if (exception) {
                         bg = working ? new Color(255, 237, 213) : new Color(254, 215, 170);
                     }

@@ -48,7 +48,7 @@ public final class ResourceUsagePanel extends JPanel {
     private static final int MAX_BUCKETS = 420;
 
     public enum Period {
-        DAYS("Dny"), WEEKS("Týdny"), MONTHS("Měsíce");
+        DAYS(Str.t("Dny")), WEEKS(Str.t("Týdny")), MONTHS(Str.t("Měsíce"));
 
         final String label;
 
@@ -63,7 +63,7 @@ public final class ResourceUsagePanel extends JPanel {
     }
 
     public enum Mode {
-        HOURS("Hodiny práce"), PERCENT("% vytížení");
+        HOURS(Str.t("Hodiny práce")), PERCENT(Str.t("% vytížení"));
 
         final String label;
 
@@ -189,7 +189,7 @@ public final class ResourceUsagePanel extends JPanel {
 
         @Override
         public String getColumnName(int column) {
-            return column == 0 ? title : column == 1 ? "Celkem h" : "Detail";
+            return column == 0 ? title : column == 1 ? Str.t("Celkem h") : Str.t("Detail");
         }
 
         @Override
@@ -211,15 +211,15 @@ public final class ResourceUsagePanel extends JPanel {
 
     private final JComboBox<Period> periodBox = new JComboBox<>(Period.values());
     private final JComboBox<Mode> modeBox = new JComboBox<>(Mode.values());
-    private final JCheckBox onlyOver = new JCheckBox("Jen přetížené zdroje");
+    private final JCheckBox onlyOver = new JCheckBox(Str.t("Jen přetížené zdroje"));
     private final JLabel summary = new JLabel(" ");
-    private final JLabel detailTitle = new JLabel("Práce vybraného zdroje po úkolech");
+    private final JLabel detailTitle = new JLabel(Str.t("Práce vybraného zdroje po úkolech"));
     private final UsageModel resModel = new UsageModel();
     private final UsageModel taskModel = new UsageModel();
     private final JTable resTable = new JTable(resModel);
-    private final JTable resNames = new JTable(new NameModel(resModel, "Zdroj"));
+    private final JTable resNames = new JTable(new NameModel(resModel, Str.t("Zdroj")));
     private final JTable taskTable = new JTable(taskModel);
-    private final JTable taskNames = new JTable(new NameModel(taskModel, "Úkol"));
+    private final JTable taskNames = new JTable(new NameModel(taskModel, Str.t("Úkol")));
     private ProjectFile project;
     private Usage usage;
     private Mode mode = Mode.HOURS;
@@ -229,7 +229,7 @@ public final class ResourceUsagePanel extends JPanel {
     public ResourceUsagePanel() {
         super(new BorderLayout());
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
-        bar.add(label("Období:"));
+        bar.add(label(Str.t("Období:")));
         periodBox.setSelectedItem(Period.WEEKS);
         periodBox.setFont(Theme.BASE);
         periodBox.addActionListener(e -> recompute());
@@ -340,7 +340,7 @@ public final class ResourceUsagePanel extends JPanel {
                 if (sel) {
                     setBackground(over ? new Color(252, 165, 165) : Theme.SELECTION);
                 } else {
-                    setBackground(over ? Theme.OVERALLOCATED : has ? Theme.WORK_LIGHT : Color.WHITE);
+                    setBackground(over ? Theme.OVERALLOCATED : has ? Theme.WORK_LIGHT : Theme.BG);
                 }
                 setFont(over ? Theme.BOLD : Theme.BASE);
                 return this;
@@ -418,8 +418,8 @@ public final class ResourceUsagePanel extends JPanel {
                 }
             }
         }
-        summary.setText(usage.names.size() + " zdrojů · " + usage.buckets.size() + " období · "
-                + (overRes == 0 ? "bez přetížení" : overRes + " přetížených zdrojů, " + usage.overCells + " období"));
+        summary.setText(usage.names.size() + Str.t(" zdrojů · ") + usage.buckets.size() + Str.t(" období · ")
+                + (overRes == 0 ? Str.t("bez přetížení") : overRes + Str.t(" přetížených zdrojů, ") + usage.overCells + Str.t(" období")));
         if (resModel.getRowCount() > 0) {
             resTable.setRowSelectionInterval(0, 0);
         }
@@ -435,7 +435,7 @@ public final class ResourceUsagePanel extends JPanel {
         if (!(key instanceof Resource r)) {
             return;
         }
-        detailTitle.setText("Práce zdroje „" + r.getName() + "“ po úkolech (dvojklik přejde na úkol)");
+        detailTitle.setText("Práce zdroje „" + r.getName() + Str.t("“ po úkolech (dvojklik přejde na úkol)"));
         Usage u = new Usage(usage.buckets, usage.headers);
         for (ResourceAssignment a : r.getTaskAssignments()) {
             Task t = a.getTask();

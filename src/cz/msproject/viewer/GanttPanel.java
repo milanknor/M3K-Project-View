@@ -48,12 +48,12 @@ public final class GanttPanel extends javax.swing.JPanel {
     private static final long serialVersionUID = 1L;
 
     public enum Zoom {
-        DAYS("Dny", 42),
-        WEEKS("Týdny", 14),
-        MONTHS("Měsíce", 4.2),
-        QUARTERS("Čtvrtletí", 1.4),
-        YEARS("Roky", 0.45),
-        FIT("Přizpůsobit oknu", 0);
+        DAYS(Str.t("Dny"), 42),
+        WEEKS(Str.t("Týdny"), 14),
+        MONTHS(Str.t("Měsíce"), 4.2),
+        QUARTERS(Str.t("Čtvrtletí"), 1.4),
+        YEARS(Str.t("Roky"), 0.45),
+        FIT(Str.t("Přizpůsobit oknu"), 0);
 
         public final String label;
         public final double pxPerDay;
@@ -120,7 +120,7 @@ public final class GanttPanel extends javax.swing.JPanel {
         scroll.getVerticalScrollBar().setUnitIncrement(Theme.ROW);
         scroll.getHorizontalScrollBar().setUnitIncrement(40);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(Color.WHITE);
+        scroll.getViewport().setBackground(Theme.BG);
         scroll.getColumnHeader().setBackground(Theme.HEADER_BG);
         scroll.getViewport().addComponentListener(new ComponentAdapter() {
             @Override
@@ -189,6 +189,7 @@ public final class GanttPanel extends javax.swing.JPanel {
 
     public void setProject(ProjectFile p) {
         project = p;
+        linkIndexDirty = true;
         workingCache.clear();
         calendar = null;
         statusDate = null;
@@ -301,6 +302,7 @@ public final class GanttPanel extends javax.swing.JPanel {
     }
 
     public void rowsChanged() {
+        linkIndexDirty = true;
         layoutChanged();
     }
 
@@ -405,7 +407,7 @@ public final class GanttPanel extends javax.swing.JPanel {
                 LocalDate d = from.withDayOfMonth(1).withMonth(((from.getMonthValue() - 1) / 3) * 3 + 1);
                 while (!d.isAfter(to)) {
                     int q = (d.getMonthValue() - 1) / 3 + 1;
-                    list.add(new Span(d, d.plusMonths(3), q + ". čtvrtletí", "Q" + q));
+                    list.add(new Span(d, d.plusMonths(3), q + Str.t(". čtvrtletí"), "Q" + q));
                     d = d.plusMonths(3);
                 }
             }
@@ -565,7 +567,7 @@ public final class GanttPanel extends javax.swing.JPanel {
 
         Chart() {
             setOpaque(true);
-            setBackground(Color.WHITE);
+            setBackground(Theme.BG);
             setFont(Theme.SMALL);
             setToolTipText("");
             MouseAdapter mouse = new MouseAdapter() {
@@ -616,13 +618,13 @@ public final class GanttPanel extends javax.swing.JPanel {
             StringBuilder sb = new StringBuilder("<html><b>").append(t.getID() == null ? "" : t.getID() + " · ")
                     .append(Fmt.html(Fmt.text(t.getName()))).append("</b>");
             if (t.getWBS() != null) {
-                sb.append(" <font color='#64748b'>(WBS ").append(Fmt.html(t.getWBS())).append(")</font>");
+                sb.append(" <font color='" + Theme.MUTED_HEX + "'>(WBS ").append(Fmt.html(t.getWBS())).append(")</font>");
             }
             sb.append("<br>").append(Fmt.dateTime(t.getStart())).append(" – ").append(Fmt.dateTime(t.getFinish()));
             sb.append("<br>Trvání: ").append(Fmt.duration(t.getDuration()));
-            sb.append(" · Dokončeno: ").append(Fmt.percent(t.getPercentageComplete()));
+            sb.append(Str.t(" · Dokončeno: ")).append(Fmt.percent(t.getPercentageComplete()));
             if (t.getWork() != null) {
-                sb.append(" · Práce: ").append(Fmt.duration(t.getWork()));
+                sb.append(Str.t(" · Práce: ")).append(Fmt.duration(t.getWork()));
             }
             String res = Fmt.resources(t);
             if (!res.isEmpty()) {
@@ -644,7 +646,7 @@ public final class GanttPanel extends javax.swing.JPanel {
             }
             List<org.mpxj.LocalDateTimeRange> splits = splits(t);
             if (splits.size() > 1) {
-                sb.append("<br>Rozdělený úkol: ").append(splits.size()).append(" částí");
+                sb.append("<br>Rozdělený úkol: ").append(splits.size()).append(Str.t(" částí"));
             }
             if (t.getCritical()) {
                 sb.append("<br><font color='#dc2626'>Kritický úkol</font>");
@@ -661,7 +663,7 @@ public final class GanttPanel extends javax.swing.JPanel {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
             Rectangle clip = g.getClipBounds();
-            g.setColor(Color.WHITE);
+            g.setColor(Theme.BG);
             g.fillRect(clip.x, clip.y, clip.width, clip.height);
             List<TaskTree.Row> rows = tree.visible();
             int from = Math.max(0, clip.y / Theme.ROW);
@@ -674,7 +676,7 @@ public final class GanttPanel extends javax.swing.JPanel {
                     g.setColor(Theme.SELECTION);
                     g.fillRect(clip.x, i * Theme.ROW, clip.width, Theme.ROW);
                 } else if (i % 2 == 1) {
-                    g.setColor(new Color(248, 250, 252, 160));
+                    g.setColor(Theme.STRIPE_ALPHA);
                     g.fillRect(clip.x, i * Theme.ROW, clip.width, Theme.ROW);
                 }
                 g.setColor(Theme.GRID);
@@ -718,8 +720,8 @@ public final class GanttPanel extends javax.swing.JPanel {
                 g.setStroke(new BasicStroke(1f));
                 g.setFont(Theme.BASE);
                 g.setColor(Theme.MUTED);
-                g.drawString(tree.size() == 0 ? "Otevřete soubor Microsoft Project (Ctrl+O) nebo jej přetáhněte do okna."
-                        : "Filtru neodpovídá žádný úkol.", 24, 40);
+                g.drawString(tree.size() == 0 ? Str.t("Otevřete soubor Microsoft Project (Ctrl+O) nebo jej přetáhněte do okna.")
+                        : Str.t("Filtru neodpovídá žádný úkol."), 24, 40);
             }
             g.dispose();
         }
@@ -869,10 +871,7 @@ public final class GanttPanel extends javax.swing.JPanel {
         }
 
         private void paintLinks(Graphics2D g, List<TaskTree.Row> rows, int from, int to, Rectangle clip) {
-            Map<Integer, Integer> index = new HashMap<>();
-            for (int i = 0; i < rows.size(); i++) {
-                index.put(rows.get(i).key(), i);
-            }
+            Map<Integer, Integer> index = linkIndex(rows);
             int selected = table.getSelectedRow();
             // vazby vybraného úkolu se kreslí až nakonec, zvýrazněně
             for (int pass = 0; pass < 2; pass++) {
@@ -980,6 +979,26 @@ public final class GanttPanel extends javax.swing.JPanel {
     }
 
     private Runnable rowsChangedCallback;
+    private Map<Integer, Integer> linkIndexCache;
+    private List<TaskTree.Row> linkIndexRows;
+    private int linkIndexSize = -1;
+
+    /** Mapa klíč úkolu → index viditelného řádku; přepočítá se jen po změně viditelných řádků. */
+    private Map<Integer, Integer> linkIndex(List<TaskTree.Row> rows) {
+        if (linkIndexCache == null || linkIndexRows != rows || linkIndexSize != rows.size() || linkIndexDirty) {
+            Map<Integer, Integer> index = new HashMap<>(rows.size() * 2);
+            for (int i = 0; i < rows.size(); i++) {
+                index.put(rows.get(i).key(), i);
+            }
+            linkIndexCache = index;
+            linkIndexRows = rows;
+            linkIndexSize = rows.size();
+            linkIndexDirty = false;
+        }
+        return linkIndexCache;
+    }
+
+    private boolean linkIndexDirty = true;
 
     public void setRowsChangedCallback(Runnable r) {
         rowsChangedCallback = r;
@@ -1005,7 +1024,7 @@ public final class GanttPanel extends javax.swing.JPanel {
         int ih = (int) Math.ceil(h * scale);
         java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(iw, ih, java.awt.image.BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
-        g.setColor(Color.WHITE);
+        g.setColor(Theme.BG);
         g.fillRect(0, 0, iw, ih);
         g.scale(scale, scale);
         Rectangle savedH = header.getBounds();

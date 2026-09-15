@@ -44,14 +44,14 @@ final class FilterDialog extends JDialog {
     private final JTextField pctMax = new JTextField(4);
     private final JComboBox<Columns.Column> columnBox = new JComboBox<>();
     private final JTextField textField = new JTextField(18);
-    private final JCheckBox leafOnly = new JCheckBox("Jen běžné úkoly a milníky (bez souhrnných)");
+    private final JCheckBox leafOnly = new JCheckBox(Str.t("Jen běžné úkoly a milníky (bez souhrnných)"));
     private final Preferences prefs;
     private final List<TaskFilter> saved = new ArrayList<>();
     private TaskFilter result;
     private boolean applied;
 
     FilterDialog(Window owner, Preferences prefs, ProjectFile project, Columns columns, TaskFilter current) {
-        super(owner, "Rozšířený filtr", ModalityType.APPLICATION_MODAL);
+        super(owner, Str.t("Rozšířený filtr"), ModalityType.APPLICATION_MODAL);
         this.prefs = prefs;
         resourceBox.setEditable(true);
         resourceBox.addItem("");
@@ -71,7 +71,7 @@ final class FilterDialog extends JDialog {
 
             @Override
             public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> l, Object v, int i, boolean s, boolean f) {
-                return super.getListCellRendererComponent(l, v == null ? "název, poznámky, WBS" : ((Columns.Column) v).title, i, s, f);
+                return super.getListCellRendererComponent(l, v == null ? Str.t("název, poznámky, WBS") : ((Columns.Column) v).title, i, s, f);
             }
         });
         loadSaved();
@@ -88,36 +88,36 @@ final class FilterDialog extends JDialog {
         gc.insets = new Insets(4, 4, 4, 4);
         gc.anchor = GridBagConstraints.WEST;
         int row = 0;
-        add(form, gc, row++, "Uložený filtr:", savedBox, savedButtons());
-        add(form, gc, row++, "Zdroj (část názvu):", resourceBox, null);
+        add(form, gc, row++, Str.t("Uložený filtr:"), savedBox, savedButtons());
+        add(form, gc, row++, Str.t("Zdroj (část názvu):"), resourceBox, null);
         JPanel dates = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         dates.add(fromField);
         dates.add(new JLabel(" – "));
         dates.add(toField);
-        dates.add(muted("(d. M. yyyy; úkol zasahuje do období)"));
-        add(form, gc, row++, "Období:", dates, null);
+        dates.add(muted(Str.t("(d. M. yyyy; úkol zasahuje do období)")));
+        add(form, gc, row++, Str.t("Období:"), dates, null);
         JPanel pct = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         pct.add(pctMin);
         pct.add(new JLabel(" – "));
         pct.add(pctMax);
         pct.add(muted("%"));
-        add(form, gc, row++, "Dokončeno:", pct, null);
+        add(form, gc, row++, Str.t("Dokončeno:"), pct, null);
         JPanel text = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         text.add(columnBox);
-        text.add(new JLabel(" obsahuje "));
+        text.add(new JLabel(Str.t(" obsahuje ")));
         text.add(textField);
-        add(form, gc, row++, "Text ve sloupci:", text, null);
+        add(form, gc, row++, Str.t("Text ve sloupci:"), text, null);
         add(form, gc, row++, "", leafOnly, null);
         for (JComponent c : new JComponent[]{savedBox, resourceBox, fromField, toField, pctMin, pctMax, columnBox, textField, leafOnly}) {
             c.setFont(Theme.BASE);
         }
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
-        JButton clear = new JButton("Vymazat");
+        JButton clear = new JButton(Str.t("Vymazat"));
         clear.addActionListener(e -> fill(TaskFilter.EMPTY));
-        JButton cancel = new JButton("Zrušit");
+        JButton cancel = new JButton(Str.t("Zrušit"));
         cancel.addActionListener(e -> dispose());
-        JButton ok = new JButton("Použít");
+        JButton ok = new JButton(Str.t("Použít"));
         ok.addActionListener(e -> {
             TaskFilter f = read(false);
             if (f != null) {
@@ -150,13 +150,13 @@ final class FilterDialog extends JDialog {
 
     private JPanel savedButtons() {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        JButton save = new JButton("Uložit jako…");
+        JButton save = new JButton(Str.t("Uložit jako…"));
         save.addActionListener(e -> {
             TaskFilter f = read(true);
             if (f == null) {
                 return;
             }
-            String name = JOptionPane.showInputDialog(this, "Název filtru:", f.name() == null || f.name().isBlank() ? f.describe() : f.name());
+            String name = JOptionPane.showInputDialog(this, Str.t("Název filtru:"), f.name() == null || f.name().isBlank() ? f.describe() : f.name());
             if (name == null || name.isBlank()) {
                 return;
             }
@@ -166,7 +166,7 @@ final class FilterDialog extends JDialog {
             storeSaved();
             savedBox.setSelectedIndex(saved.indexOf(named) + 1);
         });
-        JButton delete = new JButton("Smazat");
+        JButton delete = new JButton(Str.t("Smazat"));
         delete.addActionListener(e -> {
             int i = savedBox.getSelectedIndex() - 1;
             if (i >= 0 && i < saved.size()) {
@@ -229,7 +229,7 @@ final class FilterDialog extends JDialog {
             LocalDate from = parseDate(fromField.getText());
             LocalDate to = parseDate(toField.getText());
             if (from != null && to != null && to.isBefore(from)) {
-                throw new IllegalArgumentException("Konec období je před začátkem.");
+                throw new IllegalArgumentException(Str.t("Konec období je před začátkem."));
             }
             Integer min = parseInt(pctMin.getText());
             Integer max = parseInt(pctMax.getText());
@@ -241,7 +241,7 @@ final class FilterDialog extends JDialog {
                     textField.getText().strip(), leafOnly.isSelected());
         } catch (IllegalArgumentException ex) {
             if (!quiet) {
-                JOptionPane.showMessageDialog(this, ex.getMessage(), "Rozšířený filtr", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(this, ex.getMessage(), Str.t("Rozšířený filtr"), JOptionPane.WARNING_MESSAGE);
             }
             return null;
         }
@@ -259,7 +259,7 @@ final class FilterDialog extends JDialog {
                 // další formát
             }
         }
-        throw new IllegalArgumentException("Nerozumím datu „" + v + "“ – zadejte např. 15. 9. 2026.");
+        throw new IllegalArgumentException(Str.t("Nerozumím datu „") + v + Str.t("“ – zadejte např. 15. 9. 2026."));
     }
 
     private static Integer parseInt(String s) {
@@ -269,11 +269,11 @@ final class FilterDialog extends JDialog {
         try {
             int v = Integer.parseInt(s.strip().replace("%", "").strip());
             if (v < 0 || v > 100) {
-                throw new IllegalArgumentException("Procenta musí být 0–100.");
+                throw new IllegalArgumentException(Str.t("Procenta musí být 0–100."));
             }
             return v;
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("Procenta musí být celé číslo 0–100.");
+            throw new IllegalArgumentException(Str.t("Procenta musí být celé číslo 0–100."));
         }
     }
 
@@ -305,7 +305,7 @@ final class FilterDialog extends JDialog {
 
     private void refreshSavedBox() {
         savedBox.removeAllItems();
-        savedBox.addItem("(nový filtr)");
+        savedBox.addItem(Str.t("(nový filtr)"));
         for (TaskFilter f : saved) {
             savedBox.addItem(f.name());
         }

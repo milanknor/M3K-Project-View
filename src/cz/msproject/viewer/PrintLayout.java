@@ -135,8 +135,8 @@ public final class PrintLayout implements Printable {
         g.setColor(new Color(100, 116, 139));
         double baseline = pageH - FOOTER_PT + fm.getAscent() + 4;
         g.drawString(footerLeft, 0, (float) baseline);
-        String right = "Strana " + (page + 1) + " / " + total
-                + (across > 1 ? "  (řádky " + (firstRow + 1) + "–" + lastRow + ", část " + (col + 1) + "/" + across + ")" : "  (řádky " + (firstRow + 1) + "–" + lastRow + ")");
+        String right = Str.t("Strana ") + (page + 1) + " / " + total
+                + (across > 1 ? "  (řádky " + (firstRow + 1) + "–" + lastRow + Str.t(", část ") + (col + 1) + "/" + across + ")" : "  (řádky " + (firstRow + 1) + "–" + lastRow + ")");
         g.drawString(right, (float) (pageW - fm.stringWidth(right)), (float) baseline);
     }
 

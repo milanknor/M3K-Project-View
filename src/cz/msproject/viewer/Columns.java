@@ -33,8 +33,8 @@ public final class Columns {
     public enum Align { LEFT, RIGHT }
 
     public enum Category {
-        GENERAL("Obecné"), DATES("Termíny"), WORK_COST("Práce a náklady"), BASELINE("Základní plán"),
-        SLACK("Rezervy a kritická cesta"), OTHER("Ostatní"), CUSTOM("Vlastní pole");
+        GENERAL(Str.t("Obecné")), DATES(Str.t("Termíny")), WORK_COST(Str.t("Práce a náklady")), BASELINE(Str.t("Základní plán")),
+        SLACK(Str.t("Rezervy a kritická cesta")), OTHER(Str.t("Ostatní")), CUSTOM(Str.t("Vlastní pole"));
 
         public final String label;
 
@@ -85,74 +85,74 @@ public final class Columns {
 
     static {
         List<Column> b = new ArrayList<>();
-        ID = add(b, "id", "ID", Category.GENERAL, 46, Align.RIGHT, (r, c) -> Fmt.text(r.task.getID()), (r, c) -> r.task.getID());
-        NAME = add(b, "name", "Název úkolu", Category.GENERAL, 330, Align.LEFT, (r, c) -> Fmt.text(r.task.getName()), (r, c) -> str(r.task.getName()));
-        add(b, "duration", "Trvání", Category.GENERAL, 92, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getDuration()), (r, c) -> c.minutes(r.task.getDuration()));
-        add(b, "start", "Zahájení", Category.GENERAL, 96, Align.LEFT, (r, c) -> Fmt.date(r.task.getStart()), (r, c) -> r.task.getStart());
-        add(b, "finish", "Dokončení", Category.GENERAL, 96, Align.LEFT, (r, c) -> Fmt.date(r.task.getFinish()), (r, c) -> r.task.getFinish());
-        add(b, "percent", "% dokonč.", Category.GENERAL, 78, Align.RIGHT, (r, c) -> Fmt.percent(r.task.getPercentageComplete()), (r, c) -> num(r.task.getPercentageComplete()));
-        add(b, "predecessors", "Předchůdci", Category.GENERAL, 110, Align.LEFT, (r, c) -> Fmt.predecessors(r.task), (r, c) -> str(Fmt.predecessors(r.task)));
-        add(b, "resources", "Názvy zdrojů", Category.GENERAL, 190, Align.LEFT, (r, c) -> Fmt.resources(r.task), (r, c) -> str(Fmt.resources(r.task)));
-        add(b, "work", "Práce", Category.WORK_COST, 90, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getWork()), (r, c) -> c.minutes(r.task.getWork()));
-        add(b, "cost", "Náklady", Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.money(r.task.getCost(), c.currency), (r, c) -> num(r.task.getCost()));
-        add(b, "totalSlack", "Celková rezerva", Category.SLACK, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getTotalSlack()), (r, c) -> c.minutes(r.task.getTotalSlack()));
-        add(b, "wbs", "WBS", Category.GENERAL, 70, Align.LEFT, (r, c) -> Fmt.text(r.task.getWBS()), (r, c) -> str(r.task.getWBS()));
+        ID = add(b, "id", Str.t("ID"), Category.GENERAL, 46, Align.RIGHT, (r, c) -> Fmt.text(r.task.getID()), (r, c) -> r.task.getID());
+        NAME = add(b, "name", Str.t("Název úkolu"), Category.GENERAL, 330, Align.LEFT, (r, c) -> Fmt.text(r.task.getName()), (r, c) -> str(r.task.getName()));
+        add(b, "duration", Str.t("Trvání"), Category.GENERAL, 92, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getDuration()), (r, c) -> c.minutes(r.task.getDuration()));
+        add(b, "start", Str.t("Zahájení"), Category.GENERAL, 96, Align.LEFT, (r, c) -> Fmt.date(r.task.getStart()), (r, c) -> r.task.getStart());
+        add(b, "finish", Str.t("Dokončení"), Category.GENERAL, 96, Align.LEFT, (r, c) -> Fmt.date(r.task.getFinish()), (r, c) -> r.task.getFinish());
+        add(b, "percent", Str.t("% dokonč."), Category.GENERAL, 78, Align.RIGHT, (r, c) -> Fmt.percent(r.task.getPercentageComplete()), (r, c) -> num(r.task.getPercentageComplete()));
+        add(b, "predecessors", Str.t("Předchůdci"), Category.GENERAL, 110, Align.LEFT, (r, c) -> Fmt.predecessors(r.task), (r, c) -> str(Fmt.predecessors(r.task)));
+        add(b, "resources", Str.t("Názvy zdrojů"), Category.GENERAL, 190, Align.LEFT, (r, c) -> Fmt.resources(r.task), (r, c) -> str(Fmt.resources(r.task)));
+        add(b, "work", Str.t("Práce"), Category.WORK_COST, 90, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getWork()), (r, c) -> c.minutes(r.task.getWork()));
+        add(b, "cost", Str.t("Náklady"), Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.money(r.task.getCost(), c.currency), (r, c) -> num(r.task.getCost()));
+        add(b, "totalSlack", Str.t("Celková rezerva"), Category.SLACK, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getTotalSlack()), (r, c) -> c.minutes(r.task.getTotalSlack()));
+        add(b, "wbs", Str.t("WBS"), Category.GENERAL, 70, Align.LEFT, (r, c) -> Fmt.text(r.task.getWBS()), (r, c) -> str(r.task.getWBS()));
         DEFAULT_KEYS = List.of("id", "name", "duration", "start", "finish", "percent", "predecessors", "resources", "work", "cost", "totalSlack", "wbs");
 
-        add(b, "uniqueId", "Jedinečné ID", Category.GENERAL, 90, Align.RIGHT, (r, c) -> Fmt.text(r.task.getUniqueID()), (r, c) -> r.task.getUniqueID());
-        add(b, "outlineNumber", "Číslo osnovy", Category.GENERAL, 90, Align.LEFT, (r, c) -> Fmt.text(r.task.getOutlineNumber()), (r, c) -> str(r.task.getOutlineNumber()));
-        add(b, "level", "Úroveň", Category.GENERAL, 60, Align.RIGHT, (r, c) -> String.valueOf(r.depth + 1), (r, c) -> r.depth);
-        add(b, "kind", "Typ", Category.GENERAL, 110, Align.LEFT, (r, c) -> Labels.taskKind(r), (r, c) -> str(Labels.taskKind(r)));
-        add(b, "successors", "Následníci", Category.GENERAL, 110, Align.LEFT, (r, c) -> Fmt.successors(r.task), (r, c) -> str(Fmt.successors(r.task)));
-        add(b, "initials", "Iniciály zdrojů", Category.GENERAL, 110, Align.LEFT, (r, c) -> Fmt.text(r.task.getResourceInitials()), (r, c) -> str(r.task.getResourceInitials()));
-        add(b, "priority", "Priorita", Category.GENERAL, 110, Align.LEFT, (r, c) -> Labels.priority(r.task.getPriority()),
+        add(b, "uniqueId", Str.t("Jedinečné ID"), Category.GENERAL, 90, Align.RIGHT, (r, c) -> Fmt.text(r.task.getUniqueID()), (r, c) -> r.task.getUniqueID());
+        add(b, "outlineNumber", Str.t("Číslo osnovy"), Category.GENERAL, 90, Align.LEFT, (r, c) -> Fmt.text(r.task.getOutlineNumber()), (r, c) -> str(r.task.getOutlineNumber()));
+        add(b, "level", Str.t("Úroveň"), Category.GENERAL, 60, Align.RIGHT, (r, c) -> String.valueOf(r.depth + 1), (r, c) -> r.depth);
+        add(b, "kind", Str.t("Typ"), Category.GENERAL, 110, Align.LEFT, (r, c) -> Labels.taskKind(r), (r, c) -> str(Labels.taskKind(r)));
+        add(b, "successors", Str.t("Následníci"), Category.GENERAL, 110, Align.LEFT, (r, c) -> Fmt.successors(r.task), (r, c) -> str(Fmt.successors(r.task)));
+        add(b, "initials", Str.t("Iniciály zdrojů"), Category.GENERAL, 110, Align.LEFT, (r, c) -> Fmt.text(r.task.getResourceInitials()), (r, c) -> str(r.task.getResourceInitials()));
+        add(b, "priority", Str.t("Priorita"), Category.GENERAL, 110, Align.LEFT, (r, c) -> Labels.priority(r.task.getPriority()),
                 (r, c) -> r.task.getPriority() == null ? null : r.task.getPriority().getValue());
-        add(b, "taskType", "Typ úkolu", Category.GENERAL, 120, Align.LEFT, (r, c) -> taskType(r.task.getType()), (r, c) -> str(taskType(r.task.getType())));
-        add(b, "calendar", "Kalendář", Category.GENERAL, 120, Align.LEFT,
+        add(b, "taskType", Str.t("Typ úkolu"), Category.GENERAL, 120, Align.LEFT, (r, c) -> taskType(r.task.getType()), (r, c) -> str(taskType(r.task.getType())));
+        add(b, "calendar", Str.t("Kalendář"), Category.GENERAL, 120, Align.LEFT,
                 (r, c) -> r.task.getCalendar() == null ? "" : Fmt.text(r.task.getCalendar().getName()),
                 (r, c) -> r.task.getCalendar() == null ? null : str(r.task.getCalendar().getName()));
-        add(b, "notes", "Poznámky", Category.GENERAL, 220, Align.LEFT, (r, c) -> firstLine(r.task.getNotes()), (r, c) -> str(firstLine(r.task.getNotes())));
+        add(b, "notes", Str.t("Poznámky"), Category.GENERAL, 220, Align.LEFT, (r, c) -> firstLine(r.task.getNotes()), (r, c) -> str(firstLine(r.task.getNotes())));
 
-        add(b, "actualStart", "Skutečné zahájení", Category.DATES, 110, Align.LEFT, (r, c) -> Fmt.date(r.task.getActualStart()), (r, c) -> r.task.getActualStart());
-        add(b, "actualFinish", "Skutečné dokončení", Category.DATES, 110, Align.LEFT, (r, c) -> Fmt.date(r.task.getActualFinish()), (r, c) -> r.task.getActualFinish());
-        add(b, "deadline", "Termín", Category.DATES, 96, Align.LEFT, (r, c) -> Fmt.date(r.task.getDeadline()), (r, c) -> r.task.getDeadline());
-        add(b, "constraint", "Omezení", Category.DATES, 170, Align.LEFT,
+        add(b, "actualStart", Str.t("Skutečné zahájení"), Category.DATES, 110, Align.LEFT, (r, c) -> Fmt.date(r.task.getActualStart()), (r, c) -> r.task.getActualStart());
+        add(b, "actualFinish", Str.t("Skutečné dokončení"), Category.DATES, 110, Align.LEFT, (r, c) -> Fmt.date(r.task.getActualFinish()), (r, c) -> r.task.getActualFinish());
+        add(b, "deadline", Str.t("Termín"), Category.DATES, 96, Align.LEFT, (r, c) -> Fmt.date(r.task.getDeadline()), (r, c) -> r.task.getDeadline());
+        add(b, "constraint", Str.t("Omezení"), Category.DATES, 170, Align.LEFT,
                 (r, c) -> Labels.constraint(r.task.getConstraintType()) + (r.task.getConstraintDate() == null ? "" : " " + Fmt.date(r.task.getConstraintDate())),
                 (r, c) -> str(Labels.constraint(r.task.getConstraintType())));
-        add(b, "constraintDate", "Datum omezení", Category.DATES, 100, Align.LEFT, (r, c) -> Fmt.date(r.task.getConstraintDate()), (r, c) -> r.task.getConstraintDate());
-        add(b, "earlyStart", "Nejdřívější zahájení", Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getEarlyStart()), (r, c) -> r.task.getEarlyStart());
-        add(b, "earlyFinish", "Nejdřívější dokončení", Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getEarlyFinish()), (r, c) -> r.task.getEarlyFinish());
-        add(b, "lateStart", "Nejzazší zahájení", Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getLateStart()), (r, c) -> r.task.getLateStart());
-        add(b, "lateFinish", "Nejzazší dokončení", Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getLateFinish()), (r, c) -> r.task.getLateFinish());
-        add(b, "created", "Vytvořeno", Category.DATES, 100, Align.LEFT, (r, c) -> Fmt.date(r.task.getCreateDate()), (r, c) -> r.task.getCreateDate());
-        add(b, "startVariance", "Odchylka zahájení", Category.DATES, 120, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getStartVariance()), (r, c) -> c.minutes(r.task.getStartVariance()));
-        add(b, "finishVariance", "Odchylka dokončení", Category.DATES, 120, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getFinishVariance()), (r, c) -> c.minutes(r.task.getFinishVariance()));
+        add(b, "constraintDate", Str.t("Datum omezení"), Category.DATES, 100, Align.LEFT, (r, c) -> Fmt.date(r.task.getConstraintDate()), (r, c) -> r.task.getConstraintDate());
+        add(b, "earlyStart", Str.t("Nejdřívější zahájení"), Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getEarlyStart()), (r, c) -> r.task.getEarlyStart());
+        add(b, "earlyFinish", Str.t("Nejdřívější dokončení"), Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getEarlyFinish()), (r, c) -> r.task.getEarlyFinish());
+        add(b, "lateStart", Str.t("Nejzazší zahájení"), Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getLateStart()), (r, c) -> r.task.getLateStart());
+        add(b, "lateFinish", Str.t("Nejzazší dokončení"), Category.DATES, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getLateFinish()), (r, c) -> r.task.getLateFinish());
+        add(b, "created", Str.t("Vytvořeno"), Category.DATES, 100, Align.LEFT, (r, c) -> Fmt.date(r.task.getCreateDate()), (r, c) -> r.task.getCreateDate());
+        add(b, "startVariance", Str.t("Odchylka zahájení"), Category.DATES, 120, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getStartVariance()), (r, c) -> c.minutes(r.task.getStartVariance()));
+        add(b, "finishVariance", Str.t("Odchylka dokončení"), Category.DATES, 120, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getFinishVariance()), (r, c) -> c.minutes(r.task.getFinishVariance()));
 
-        add(b, "actualWork", "Skutečná práce", Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getActualWork()), (r, c) -> c.minutes(r.task.getActualWork()));
-        add(b, "remainingWork", "Zbývající práce", Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getRemainingWork()), (r, c) -> c.minutes(r.task.getRemainingWork()));
-        add(b, "percentWork", "% práce", Category.WORK_COST, 70, Align.RIGHT, (r, c) -> Fmt.percent(r.task.getPercentageWorkComplete()), (r, c) -> num(r.task.getPercentageWorkComplete()));
-        add(b, "actualCost", "Skutečné náklady", Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.money(r.task.getActualCost(), c.currency), (r, c) -> num(r.task.getActualCost()));
-        add(b, "remainingCost", "Zbývající náklady", Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.money(r.task.getRemainingCost(), c.currency), (r, c) -> num(r.task.getRemainingCost()));
-        add(b, "fixedCost", "Pevné náklady", Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.money(r.task.getFixedCost(), c.currency), (r, c) -> num(r.task.getFixedCost()));
-        add(b, "workVariance", "Odchylka práce", Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getWorkVariance()), (r, c) -> c.minutes(r.task.getWorkVariance()));
-        add(b, "costVariance", "Odchylka nákladů", Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.money(r.task.getCostVariance(), c.currency), (r, c) -> num(r.task.getCostVariance()));
+        add(b, "actualWork", Str.t("Skutečná práce"), Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getActualWork()), (r, c) -> c.minutes(r.task.getActualWork()));
+        add(b, "remainingWork", Str.t("Zbývající práce"), Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getRemainingWork()), (r, c) -> c.minutes(r.task.getRemainingWork()));
+        add(b, "percentWork", Str.t("% práce"), Category.WORK_COST, 70, Align.RIGHT, (r, c) -> Fmt.percent(r.task.getPercentageWorkComplete()), (r, c) -> num(r.task.getPercentageWorkComplete()));
+        add(b, "actualCost", Str.t("Skutečné náklady"), Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.money(r.task.getActualCost(), c.currency), (r, c) -> num(r.task.getActualCost()));
+        add(b, "remainingCost", Str.t("Zbývající náklady"), Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.money(r.task.getRemainingCost(), c.currency), (r, c) -> num(r.task.getRemainingCost()));
+        add(b, "fixedCost", Str.t("Pevné náklady"), Category.WORK_COST, 100, Align.RIGHT, (r, c) -> Fmt.money(r.task.getFixedCost(), c.currency), (r, c) -> num(r.task.getFixedCost()));
+        add(b, "workVariance", Str.t("Odchylka práce"), Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getWorkVariance()), (r, c) -> c.minutes(r.task.getWorkVariance()));
+        add(b, "costVariance", Str.t("Odchylka nákladů"), Category.WORK_COST, 110, Align.RIGHT, (r, c) -> Fmt.money(r.task.getCostVariance(), c.currency), (r, c) -> num(r.task.getCostVariance()));
 
-        add(b, "baselineStart", "Zahájení (zákl. plán)", Category.BASELINE, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getBaselineStart()), (r, c) -> r.task.getBaselineStart());
-        add(b, "baselineFinish", "Dokončení (zákl. plán)", Category.BASELINE, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getBaselineFinish()), (r, c) -> r.task.getBaselineFinish());
-        add(b, "baselineDuration", "Trvání (zákl. plán)", Category.BASELINE, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getBaselineDuration()), (r, c) -> c.minutes(r.task.getBaselineDuration()));
-        add(b, "baselineWork", "Práce (zákl. plán)", Category.BASELINE, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getBaselineWork()), (r, c) -> c.minutes(r.task.getBaselineWork()));
-        add(b, "baselineCost", "Náklady (zákl. plán)", Category.BASELINE, 120, Align.RIGHT, (r, c) -> Fmt.money(r.task.getBaselineCost(), c.currency), (r, c) -> num(r.task.getBaselineCost()));
+        add(b, "baselineStart", Str.t("Zahájení (zákl. plán)"), Category.BASELINE, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getBaselineStart()), (r, c) -> r.task.getBaselineStart());
+        add(b, "baselineFinish", Str.t("Dokončení (zákl. plán)"), Category.BASELINE, 120, Align.LEFT, (r, c) -> Fmt.date(r.task.getBaselineFinish()), (r, c) -> r.task.getBaselineFinish());
+        add(b, "baselineDuration", Str.t("Trvání (zákl. plán)"), Category.BASELINE, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getBaselineDuration()), (r, c) -> c.minutes(r.task.getBaselineDuration()));
+        add(b, "baselineWork", Str.t("Práce (zákl. plán)"), Category.BASELINE, 110, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getBaselineWork()), (r, c) -> c.minutes(r.task.getBaselineWork()));
+        add(b, "baselineCost", Str.t("Náklady (zákl. plán)"), Category.BASELINE, 120, Align.RIGHT, (r, c) -> Fmt.money(r.task.getBaselineCost(), c.currency), (r, c) -> num(r.task.getBaselineCost()));
 
-        add(b, "freeSlack", "Volná rezerva", Category.SLACK, 100, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getFreeSlack()), (r, c) -> c.minutes(r.task.getFreeSlack()));
-        add(b, "critical", "Kritický", Category.SLACK, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getCritical()), (r, c) -> r.task.getCritical() ? 1 : 0);
-        add(b, "milestone", "Milník", Category.OTHER, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getMilestone()), (r, c) -> r.task.getMilestone() ? 1 : 0);
-        add(b, "summary", "Souhrnný", Category.OTHER, 80, Align.LEFT, (r, c) -> Fmt.yesNo(r.isSummary()), (r, c) -> r.isSummary() ? 1 : 0);
-        add(b, "active", "Aktivní", Category.OTHER, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getActive()), (r, c) -> r.task.getActive() ? 1 : 0);
-        add(b, "estimated", "Odhad", Category.OTHER, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getEstimated()), (r, c) -> r.task.getEstimated() ? 1 : 0);
-        add(b, "effortDriven", "Řízený úsilím", Category.OTHER, 100, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getEffortDriven()), (r, c) -> r.task.getEffortDriven() ? 1 : 0);
-        add(b, "hyperlink", "Odkaz", Category.OTHER, 160, Align.LEFT, (r, c) -> Fmt.text(r.task.getHyperlink()), (r, c) -> str(r.task.getHyperlink()));
-        add(b, "contact", "Kontakt", Category.OTHER, 120, Align.LEFT, (r, c) -> Fmt.text(r.task.getContact()), (r, c) -> str(r.task.getContact()));
-        add(b, "subproject", "Podprojekt", Category.OTHER, 160, Align.LEFT, (r, c) -> Fmt.text(r.task.getSubprojectFile()), (r, c) -> str(r.task.getSubprojectFile()));
+        add(b, "freeSlack", Str.t("Volná rezerva"), Category.SLACK, 100, Align.RIGHT, (r, c) -> Fmt.duration(r.task.getFreeSlack()), (r, c) -> c.minutes(r.task.getFreeSlack()));
+        add(b, "critical", Str.t("Kritický"), Category.SLACK, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getCritical()), (r, c) -> r.task.getCritical() ? 1 : 0);
+        add(b, "milestone", Str.t("Milník"), Category.OTHER, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getMilestone()), (r, c) -> r.task.getMilestone() ? 1 : 0);
+        add(b, "summary", Str.t("Souhrnný"), Category.OTHER, 80, Align.LEFT, (r, c) -> Fmt.yesNo(r.isSummary()), (r, c) -> r.isSummary() ? 1 : 0);
+        add(b, "active", Str.t("Aktivní"), Category.OTHER, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getActive()), (r, c) -> r.task.getActive() ? 1 : 0);
+        add(b, "estimated", Str.t("Odhad"), Category.OTHER, 70, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getEstimated()), (r, c) -> r.task.getEstimated() ? 1 : 0);
+        add(b, "effortDriven", Str.t("Řízený úsilím"), Category.OTHER, 100, Align.LEFT, (r, c) -> Fmt.yesNo(r.task.getEffortDriven()), (r, c) -> r.task.getEffortDriven() ? 1 : 0);
+        add(b, "hyperlink", Str.t("Odkaz"), Category.OTHER, 160, Align.LEFT, (r, c) -> Fmt.text(r.task.getHyperlink()), (r, c) -> str(r.task.getHyperlink()));
+        add(b, "contact", Str.t("Kontakt"), Category.OTHER, 120, Align.LEFT, (r, c) -> Fmt.text(r.task.getContact()), (r, c) -> str(r.task.getContact()));
+        add(b, "subproject", Str.t("Podprojekt"), Category.OTHER, 160, Align.LEFT, (r, c) -> Fmt.text(r.task.getSubprojectFile()), (r, c) -> str(r.task.getSubprojectFile()));
         BUILTIN = Collections.unmodifiableList(b);
     }
 
@@ -220,7 +220,7 @@ public final class Columns {
     }
 
     public static String baselineName(int i) {
-        return i == 0 ? "Základní plán" : "Základní plán " + i;
+        return i == 0 ? Str.t("Základní plán") : Str.t("Základní plán ") + i;
     }
 
     public Columns() {
@@ -254,17 +254,17 @@ public final class Columns {
                 continue;
             }
             final int n = i;
-            String suffix = " (ZP " + n + ")";
+            String suffix = Str.t(" (ZP ") + n + ")";
             for (Column c : new Column[]{
-                    new Column("baseline" + n + "Start", "Zahájení" + suffix, Category.BASELINE, 110, Align.LEFT,
+                    new Column("baseline" + n + "Start", Str.t("Zahájení") + suffix, Category.BASELINE, 110, Align.LEFT,
                             (r, c2) -> Fmt.date(baselineStart(r.task, n)), (r, c2) -> baselineStart(r.task, n)),
-                    new Column("baseline" + n + "Finish", "Dokončení" + suffix, Category.BASELINE, 110, Align.LEFT,
+                    new Column("baseline" + n + "Finish", Str.t("Dokončení") + suffix, Category.BASELINE, 110, Align.LEFT,
                             (r, c2) -> Fmt.date(baselineFinish(r.task, n)), (r, c2) -> baselineFinish(r.task, n)),
-                    new Column("baseline" + n + "Duration", "Trvání" + suffix, Category.BASELINE, 100, Align.RIGHT,
+                    new Column("baseline" + n + "Duration", Str.t("Trvání") + suffix, Category.BASELINE, 100, Align.RIGHT,
                             (r, c2) -> Fmt.duration(baselineDuration(r.task, n)), (r, c2) -> c2.minutes(baselineDuration(r.task, n))),
-                    new Column("baseline" + n + "Work", "Práce" + suffix, Category.BASELINE, 100, Align.RIGHT,
+                    new Column("baseline" + n + "Work", Str.t("Práce") + suffix, Category.BASELINE, 100, Align.RIGHT,
                             (r, c2) -> Fmt.duration(baselineWork(r.task, n)), (r, c2) -> c2.minutes(baselineWork(r.task, n))),
-                    new Column("baseline" + n + "Cost", "Náklady" + suffix, Category.BASELINE, 110, Align.RIGHT,
+                    new Column("baseline" + n + "Cost", Str.t("Náklady") + suffix, Category.BASELINE, 110, Align.RIGHT,
                             (r, c2) -> Fmt.money(baselineCost(r.task, n), c2.currency), (r, c2) -> num(baselineCost(r.task, n)))}) {
                 byKey.put(c.key, c);
             }
@@ -293,7 +293,7 @@ public final class Columns {
             if (!used) {
                 continue;
             }
-            String base = (m.group(1) == null ? "" : "Podnik. ") + czechName(m.group(2)) + m.group(3);
+            String base = (m.group(1) == null ? "" : Str.t("Podnik. ")) + czechName(m.group(2)) + m.group(3);
             String title = alias == null || alias.isBlank() ? base : alias + " (" + base + ")";
             DataType type = f.getDataType();
             Align align = type == DataType.NUMERIC || type == DataType.CURRENCY || type == DataType.DURATION ? Align.RIGHT : Align.LEFT;
@@ -327,15 +327,15 @@ public final class Columns {
 
     private static String czechName(String kind) {
         switch (kind) {
-            case "TEXT": return "Text";
-            case "NUMBER": return "Číslo";
-            case "FLAG": return "Příznak";
-            case "DATE": return "Datum";
-            case "DURATION": return "Doba trvání";
-            case "COST": return "Náklady";
-            case "START": return "Zahájení";
-            case "FINISH": return "Dokončení";
-            case "OUTLINE_CODE": return "Kód osnovy";
+            case "TEXT": return Str.t("Text");
+            case "NUMBER": return Str.t("Číslo");
+            case "FLAG": return Str.t("Příznak");
+            case "DATE": return Str.t("Datum");
+            case "DURATION": return Str.t("Doba trvání");
+            case "COST": return Str.t("Náklady");
+            case "START": return Str.t("Zahájení");
+            case "FINISH": return Str.t("Dokončení");
+            case "OUTLINE_CODE": return Str.t("Kód osnovy");
             default: return kind;
         }
     }
@@ -345,7 +345,7 @@ public final class Columns {
             return "";
         }
         if (v instanceof Boolean bool) {
-            return bool ? "ano" : "";
+            return bool ? Str.t("ano") : "";
         }
         if (v instanceof LocalDateTime d) {
             return Fmt.date(d);
@@ -492,10 +492,10 @@ public final class Columns {
             return "";
         }
         switch (t) {
-            case FIXED_UNITS: return "Pevné jednotky";
-            case FIXED_DURATION: return "Pevná doba trvání";
-            case FIXED_WORK: return "Pevná práce";
-            case FIXED_DURATION_AND_UNITS: return "Pevná doba trvání a jednotky";
+            case FIXED_UNITS: return Str.t("Pevné jednotky");
+            case FIXED_DURATION: return Str.t("Pevná doba trvání");
+            case FIXED_WORK: return Str.t("Pevná práce");
+            case FIXED_DURATION_AND_UNITS: return Str.t("Pevná doba trvání a jednotky");
             default: return t.toString();
         }
     }
