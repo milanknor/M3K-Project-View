@@ -35,6 +35,7 @@ public final class DetailsPanel extends JPanel {
     private final List<Task> linkTasks = new ArrayList<>();
     private String currency = "";
     private Consumer<Task> navigator;
+    private Columns columns;
 
     public DetailsPanel() {
         super(new BorderLayout());
@@ -94,6 +95,11 @@ public final class DetailsPanel extends JPanel {
 
     public void setProject(ProjectFile p) {
         currency = p == null ? "" : Fmt.text(p.getProjectProperties().getCurrencySymbol());
+    }
+
+    /** Definice sloupců – kvůli vlastním polím (Text1…, Číslo1…) v záložce Obecné. */
+    public void setColumns(Columns c) {
+        columns = c;
     }
 
     public JTabbedPane tabs() {
@@ -157,7 +163,27 @@ public final class DetailsPanel extends JPanel {
             cell(h, "Kontakt", Fmt.orDash(t.getContact()));
             h.append("</tr>");
         }
-        h.append("</table></body></html>");
+        h.append("</table>");
+        if (columns != null && !columns.custom().isEmpty()) {
+            StringBuilder cf = new StringBuilder();
+            int n = 0;
+            for (Columns.Column c : columns.custom()) {
+                String v = columns.text(c, row);
+                if (v.isEmpty()) {
+                    continue;
+                }
+                if (n % 4 == 0) {
+                    cf.append(n == 0 ? "<tr>" : "</tr><tr>");
+                }
+                cell(cf, c.title, v);
+                n++;
+            }
+            if (n > 0) {
+                h.append("<div style='color:#64748b;margin-top:6px'>Vlastní pole</div><table cellspacing='0' cellpadding='2'>")
+                        .append(cf).append("</tr></table>");
+            }
+        }
+        h.append("</body></html>");
         general.setText(h.toString());
         general.setCaretPosition(0);
 

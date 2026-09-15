@@ -1,34 +1,49 @@
-M3K Project View
+M3K Project View – licenční podmínky (freeware)
 Copyright (c) 2026 Milan Knor
 
-Program je volně šiřitelný pod licencí MIT (anglické znění níže je závazné).
-Součástí programu jsou knihovny třetích stran a běhové prostředí Java, které
-zůstávají pod svými původními licencemi – viz složka licenses\ (THIRD-PARTY.txt)
-a runtime\legal\.
+1. Program M3K Project View („Program“) je poskytován zdarma (freeware). Smíte jej
+   používat bez omezení počtu instalací, k soukromým i komerčním účelům.
 
-Microsoft Project je ochranná známka společnosti Microsoft Corporation.
-Tento program není produktem společnosti Microsoft ani s ní není nijak spojen.
+2. Program smíte volně kopírovat a dále šířit, a to pouze v nezměněné podobě
+   (celý instalační balíček nebo celý přenosný ZIP včetně všech souborů), bezplatně
+   a s těmito licenčními podmínkami. Není dovoleno Program prodávat, pronajímat,
+   upravovat, dekompilovat ani z něj odvozovat jiná díla; zdrojový kód Programu
+   není součástí distribuce a autor jej neposkytuje.
+
+3. Součástí Programu jsou knihovny třetích stran a běhové prostředí Java, které
+   zůstávají pod svými původními licencemi (viz Nápověda → Licence… v Programu
+   a složka licenses\ a runtime\legal\ vedle Programu). Tyto podmínky je nijak
+   neomezují. Zejména knihovna MPXJ je poskytována pod licencí GNU LGPL 2.1 nebo
+   novější jako samostatný soubor app\mpxj.jar: v souladu s LGPL ji smíte nahradit
+   vlastní upravenou verzí a provádět zpětnou analýzu v rozsahu nezbytném
+   k ladění takových úprav. Zdrojové kódy MPXJ: https://github.com/joniles/mpxj
+
+4. Program pouze čte soubory a nikam neodesílá žádná data.
+
+5. PROGRAM JE POSKYTOVÁN „TAK, JAK JE“, BEZ JAKÉKOLI ZÁRUKY, výslovné či
+   předpokládané, včetně záruky prodejnosti, vhodnosti pro určitý účel nebo
+   správnosti zobrazených údajů. Autor neodpovídá za žádnou škodu vzniklou
+   používáním Programu nebo nemožností jej použít. Program používáte na vlastní
+   odpovědnost; rozhodující jsou vždy údaje v původním souboru Microsoft Project.
+
+6. Microsoft Project je ochranná známka společnosti Microsoft Corporation. Program
+   není produktem společnosti Microsoft ani s ní není nijak spojen.
 
 ----------------------------------------------------------------------
 
-MIT License
+M3K Project View – License Terms (freeware) – English summary; the Czech text above prevails.
 
-Copyright (c) 2026 Milan Knor
+The Program is free of charge for private and commercial use. You may copy and
+redistribute it free of charge only in unmodified form (the complete installer or
+the complete portable ZIP) together with these terms. Selling, modifying,
+decompiling or creating derivative works of the Program is not permitted; source
+code is not distributed. Third-party libraries and the Java runtime remain under
+their own licenses (see Help → Licenses in the Program). The MPXJ library is
+provided under the GNU LGPL 2.1+ as a separate file app\mpxj.jar; as required by
+the LGPL you may replace it with your own modified version and reverse engineer
+it to the extent necessary to debug such modifications.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE PROGRAM IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. In no event shall
+the author be liable for any damages arising from the use of, or inability to use,
+the Program. Microsoft Project is a trademark of Microsoft Corporation; the Program
+is not a Microsoft product and is not affiliated with Microsoft.

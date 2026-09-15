@@ -99,20 +99,23 @@ test\                      testovací soubory MPP8, MPP9, MPP12, MPP14
 tools\make_icon.py         generátor ikony
 tools\collect_licenses.py  vytáhne licence a NOTICE z jarů, vytvoří THIRD-PARTY.txt a index
 installer\setup.iss        instalátor (Inno Setup 6)
-LICENSE.txt                licence programu (MIT)
+LICENSE.txt                licenční podmínky programu (freeware)
 build.ps1                  sestavení, testy, balíček, instalátor
 ```
 
 ## Licence
 
-Program je **volně šiřitelný pod licencí MIT** (© 2026 Milan Knor, `LICENSE.txt`).
+Program je **freeware** (© 2026 Milan Knor, `LICENSE.txt`): zdarma k použití i k dalšímu
+šíření v nezměněné podobě; zdrojový kód není součástí distribuce (balíček obsahuje jen
+zkompilovanou aplikaci s běhovým prostředím).
 Knihovny třetích stran (MPXJ – LGPL 2.1+, Apache POI, Jackcess, Jackson, Commons,
 sqlite-jdbc, log4j-api – Apache 2.0, jsoup – MIT, JAXB/Jakarta – EDL 1.0) a běhové
 prostředí Java (Temurin OpenJDK – GPLv2 s Classpath Exception) zůstávají pod svými
 licencemi. Jejich texty jsou přímo v aplikaci (Nápověda → Licence…), ve složce
 `licenses\` vedle programu (`THIRD-PARTY.txt` + texty z jednotlivých knihoven) a
 v `runtime\legal\`. MPXJ je přiložena jako samostatný `app\mpxj.jar`, takže ji lze
-podle LGPL nahradit. Instalátor zobrazí licenci MIT před instalací.
+podle LGPL nahradit (licenční podmínky to výslovně dovolují, jak LGPL vyžaduje).
+Instalátor zobrazí licenční podmínky před instalací.
 
 Microsoft Project je ochranná známka Microsoft Corporation; tento program není
 produktem Microsoftu.

@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,12 +46,15 @@ public final class TaskTree {
         public final Task task;
         public final Row parent;
         public final int depth;
+        /** Pořadí v souboru (stabilní klíč pro řazení). */
+        public final int seq;
         public final List<Row> children = new ArrayList<>();
 
-        Row(Task task, Row parent, int depth) {
+        Row(Task task, Row parent, int depth, int seq) {
             this.task = task;
             this.parent = parent;
             this.depth = depth;
+            this.seq = seq;
         }
 
         public boolean isSummary() {
@@ -71,6 +75,7 @@ public final class TaskTree {
     private int maxDepth = Integer.MAX_VALUE;
     private LocalDate today = LocalDate.now();
     private int matchCount;
+    private Comparator<Row> order;
 
     public void clear() {
         roots.clear();
@@ -136,7 +141,7 @@ public final class TaskTree {
             }
             return;
         }
-        Row row = new Row(t, parent, depth);
+        Row row = new Row(t, parent, depth, all.size());
         all.add(row);
         if (parent == null) {
             roots.add(row);
@@ -193,6 +198,28 @@ public final class TaskTree {
 
     public void setToday(LocalDate d) {
         today = d;
+    }
+
+    /** Řazení v rámci každé úrovně osnovy (null = pořadí ze souboru); shodné hodnoty zachovají pořadí ze souboru. */
+    public void setOrder(Comparator<Row> comparator) {
+        order = comparator == null ? null : (a, b) -> {
+            int c = comparator.compare(a, b);
+            return c != 0 ? c : Integer.compare(a.seq, b.seq);
+        };
+        rebuild();
+    }
+
+    public boolean isSorted() {
+        return order != null;
+    }
+
+    private List<Row> ordered(List<Row> list) {
+        if (order == null || list.size() < 2) {
+            return list;
+        }
+        List<Row> copy = new ArrayList<>(list);
+        copy.sort(order);
+        return copy;
     }
 
     public void toggle(Row r) {
@@ -321,16 +348,24 @@ public final class TaskTree {
                     }
                 }
             }
-            for (Row r : all) {
-                if (keep.contains(r)) {
-                    visible.add(r);
-                }
+            for (Row r : ordered(roots)) {
+                addFiltered(r, keep);
             }
         } else {
-            for (Row r : roots) {
+            for (Row r : ordered(roots)) {
                 addVisible(r);
             }
             matchCount = visible.size();
+        }
+    }
+
+    private void addFiltered(Row r, Set<Row> keep) {
+        if (!keep.contains(r)) {
+            return;
+        }
+        visible.add(r);
+        for (Row c : ordered(r.children)) {
+            addFiltered(c, keep);
         }
     }
 
@@ -342,7 +377,7 @@ public final class TaskTree {
         if (collapsed.contains(r.key())) {
             return;
         }
-        for (Row c : r.children) {
+        for (Row c : ordered(r.children)) {
             addVisible(c);
         }
     }

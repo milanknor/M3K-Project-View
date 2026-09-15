@@ -138,10 +138,6 @@ if ($Package) {
     Copy-Item "$root\README.md" "$appDir\CTETE-ME.md"
     Copy-Item "$root\LICENSE.txt" "$appDir\"
     Copy-Item "$root\lib\licenses" "$appDir\licenses" -Recurse
-    New-Item -ItemType Directory -Force "$appDir\source" | Out-Null
-    Copy-Item "$root\src" "$appDir\source\" -Recurse
-    Copy-Item "$root\build.ps1" "$appDir\source\"
-    Copy-Item "$root\tools" "$appDir\source\" -Recurse
 
     $zip = "$dist\M3K-Project-View-Windows.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }

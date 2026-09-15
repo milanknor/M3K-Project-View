@@ -23,6 +23,14 @@ public final class SelfTest {
         }
     }
 
+    private static TaskTree.Row ancestorAtDepth(TaskTree.Row r, int depth) {
+        TaskTree.Row x = r;
+        while (x != null && x.depth > depth) {
+            x = x.parent;
+        }
+        return x;
+    }
+
     /** {@code --test soubor1 soubor2 …} */
     public static void run(String[] args) throws Exception {
         int total = 0;
@@ -69,13 +77,63 @@ public final class SelfTest {
                 check(r.parent == null || r.parent.children.contains(r), "Rozbitá hierarchie: " + t.getName());
                 check(r.parent == null || r.depth == r.parent.depth + 1, "Špatná hloubka: " + t.getName());
             }
-            TaskTableModel model = new TaskTableModel(tree);
-            model.setCurrency(currency);
+            Columns columns = new Columns();
+            columns.setProject(f);
+            TaskTableModel model = new TaskTableModel(tree, columns);
+            model.setShown(columns.all());
+            check(model.getColumnCount() == columns.all().size(), "Model nezobrazil všechny sloupce");
             for (int r = 0; r < model.getRowCount(); r++) {
                 for (int c = 0; c < model.getColumnCount(); c++) {
                     check(model.getValueAt(r, c) != null, "Prázdná buňka");
                 }
             }
+            String lowerName = p.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+            if (lowerName.contains("flags")) {
+                check(!columns.custom().isEmpty(), "Soubor s vlastními poli nevrátil žádné vlastní sloupce: " + p);
+            }
+            if (!columns.custom().isEmpty()) {
+                StringBuilder cs = new StringBuilder();
+                for (Columns.Column c : columns.custom()) {
+                    cs.append(cs.length() == 0 ? "" : ", ").append(c.title);
+                }
+                System.out.println("  vlastní pole (" + columns.custom().size() + "): " + cs);
+            }
+            model.setShown(new java.util.ArrayList<>());
+            check(model.getColumnCount() == 1 && model.columnAt(0) == Columns.NAME, "Prázdný výběr sloupců nenechal název");
+
+            // řazení v rámci úrovně: sestupně podle názvu, prázdné na konci, pak zpět
+            tree.expandAll();
+            List<TaskTree.Row> original = new java.util.ArrayList<>(tree.visible());
+            tree.setOrder(columns.comparator(Columns.NAME, false));
+            check(tree.visible().size() == original.size(), "Řazení změnilo počet řádků");
+            java.text.Collator coll = java.text.Collator.getInstance(Fmt.CS);
+            for (TaskTree.Row r : tree.all()) {
+                TaskTree.Row prev = null;
+                for (TaskTree.Row v : tree.visible()) {
+                    if (v.parent != r) {
+                        continue;
+                    }
+                    if (prev != null) {
+                        String a = Fmt.text(prev.task.getName());
+                        String b = Fmt.text(v.task.getName());
+                        check(a.isBlank() ? b.isBlank() : b.isBlank() || coll.compare(a, b) >= 0, "Sestupné řazení podle názvu nesedí: " + a + " < " + b);
+                    }
+                    prev = v;
+                }
+            }
+            for (int k = 1; k < tree.visible().size(); k++) {
+                TaskTree.Row a = tree.visible().get(k - 1);
+                TaskTree.Row b = tree.visible().get(k);
+                check(b.depth <= a.depth + 1, "Řazení rozbilo hierarchii");
+                check(b.depth == 0 || b.parent == (b.depth == a.depth + 1 ? a : ancestorAtDepth(a, b.depth - 1)), "Řazení rozbilo vazbu na rodiče");
+            }
+            tree.setOrder(null);
+            check(tree.visible().equals(original), "Zrušení řazení nevrátilo pořadí ze souboru");
+            tree.setOrder(columns.comparator(columns.byKey("start"), true));
+            tree.setQuery("a");
+            check(tree.visible().size() <= original.size(), "Řazení s hledáním přidalo řádky");
+            tree.setQuery("");
+            tree.setOrder(null);
 
             tree.setQuery("THIS_SHOULD_NOT_MATCH_73423");
             check(tree.visible().isEmpty(), "Hledání nefiltruje");
@@ -121,7 +179,11 @@ public final class SelfTest {
 
             Path csv = Files.createTempFile("msproject-viewer-", ".csv");
             try {
-                CsvExport.write(csv, tree.visible(), currency);
+                List<Columns.Column> shown = new java.util.ArrayList<>();
+                for (String k : Columns.DEFAULT_KEYS) {
+                    shown.add(columns.byKey(k));
+                }
+                CsvExport.write(csv, tree.visible(), columns, shown);
                 List<String> lines = Files.readAllLines(csv, StandardCharsets.UTF_8);
                 check(lines.size() == tree.visible().size() + 1, "CSV má špatný počet řádků");
                 check(lines.get(0).startsWith("﻿ID;"), "CSV bez BOM/hlavičky");
@@ -208,6 +270,31 @@ public final class SelfTest {
                 }
                 w.goToTask(w.tree.all().get(w.tree.all().size() - 1).task);
                 check(w.table.getSelectedRow() == w.tree.visible().size() - 1, "goToTask nevybral poslední úkol");
+                // řazení kliknutím na hlavičku: vzestupně → sestupně → zrušit
+                int nameView = w.table.convertColumnIndexToView(w.model.indexOf(Columns.NAME));
+                check(nameView >= 0, "Sloupec Název není zobrazen");
+                w.sortBy(Columns.NAME);
+                check(w.sortColumn == Columns.NAME && w.sortAscending && w.tree.isSorted(), "Řazení v okně se nezapnulo");
+                check(String.valueOf(w.table.getColumnModel().getColumn(nameView).getHeaderValue()).endsWith("▲"), "Hlavička bez šipky řazení");
+                w.sortBy(Columns.NAME);
+                check(!w.sortAscending, "Druhé kliknutí nepřepnulo na sestupné řazení");
+                w.sortBy(Columns.NAME);
+                check(w.sortColumn == null && !w.tree.isSorted(), "Třetí kliknutí nezrušilo řazení");
+                // výběr sloupců: přidat vlastní/jiný sloupec a vrátit výchozí
+                int before = w.table.getColumnCount();
+                java.util.List<String[]> setting = new java.util.ArrayList<>();
+                for (String k : Columns.DEFAULT_KEYS) {
+                    setting.add(new String[]{k, ""});
+                }
+                setting.add(new String[]{"deadline", "80"});
+                setting.add(new String[]{"custom:TEXT99", ""});
+                w.applyColumns(setting);
+                check(w.table.getColumnCount() == before + 1, "Přidání sloupce Termín se neprojevilo");
+                check(w.model.getValueAt(0, w.model.indexOf(w.columns.byKey("deadline"))) != null, "Sloupec Termín nevrací hodnotu");
+                setting.remove(setting.size() - 1);
+                setting.remove(setting.size() - 1);
+                w.applyColumns(setting);
+                check(w.table.getColumnCount() == before, "Návrat na výchozí sloupce se neprojevil");
                 w.table.setRowSelectionInterval(0, 0);
                 w.details.tabs().setSelectedIndex(0);
                 w.validate();
@@ -232,8 +319,8 @@ public final class SelfTest {
                 }
                 List<LicenseDialog.Entry> licenses = LicenseDialog.entries();
                 check(licenses.size() >= 20, "Málo licenčních položek: " + licenses.size());
-                check(licenses.get(0).resource().equals("LICENSE.txt") && LicenseDialog.text("LICENSE.txt").contains("MIT License"),
-                        "Chybí licence programu (MIT)");
+                check(licenses.get(0).resource().equals("LICENSE.txt") && LicenseDialog.text("LICENSE.txt").contains("freeware")
+                        && LicenseDialog.text("LICENSE.txt").contains("LGPL"), "Chybí licenční podmínky programu");
                 for (LicenseDialog.Entry e : licenses) {
                     check(LicenseDialog.text(e.resource()).length() > 50, "Prázdný licenční text: " + e.resource());
                 }

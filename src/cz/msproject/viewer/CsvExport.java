@@ -1,12 +1,11 @@
 package cz.msproject.viewer;
 
-import org.mpxj.Task;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Export seznamu úkolů do CSV (UTF-8 s BOM, středník – otevře se správně v českém Excelu). */
@@ -16,34 +15,32 @@ public final class CsvExport {
     private CsvExport() {
     }
 
-    public static void write(Path target, List<TaskTree.Row> rows, String currency) throws IOException {
+    /** Zapíše zobrazené sloupce v jejich pořadí; navíc vždy Úroveň (za ID/názvem) a Poznámky (na konci). */
+    public static void write(Path target, List<TaskTree.Row> rows, Columns columns, List<Columns.Column> shown) throws IOException {
+        List<Columns.Column> cols = new ArrayList<>(shown);
+        Columns.Column level = columns.byKey("level");
+        Columns.Column notes = columns.byKey("notes");
+        if (level != null && !cols.contains(level)) {
+            int at = Math.min(cols.size(), Math.max(cols.indexOf(Columns.ID), cols.indexOf(Columns.NAME)) + 1);
+            cols.add(at, level);
+        }
+        if (notes != null && !cols.contains(notes)) {
+            cols.add(notes);
+        }
         try (BufferedWriter w = Files.newBufferedWriter(target, StandardCharsets.UTF_8)) {
             w.write(0xFEFF);
-            writeLine(w, "ID", "Úroveň", "WBS", "Název úkolu", "Trvání", "Zahájení", "Dokončení", "% dokončeno",
-                    "Předchůdci", "Názvy zdrojů", "Práce", "Náklady", "Celková rezerva", "Kritický", "Milník",
-                    "Souhrnný", "Aktivní", "Termín", "Poznámky");
+            String[] head = new String[cols.size()];
+            for (int i = 0; i < cols.size(); i++) {
+                head[i] = cols.get(i).title;
+            }
+            writeLine(w, head);
+            String[] cells = new String[cols.size()];
             for (TaskTree.Row r : rows) {
-                Task t = r.task;
-                writeLine(w,
-                        Fmt.text(t.getID()),
-                        String.valueOf(r.depth + 1),
-                        Fmt.text(t.getWBS()),
-                        Fmt.text(t.getName()),
-                        Fmt.duration(t.getDuration()),
-                        Fmt.date(t.getStart()),
-                        Fmt.date(t.getFinish()),
-                        Fmt.percent(t.getPercentageComplete()),
-                        Fmt.predecessors(t),
-                        Fmt.resources(t),
-                        Fmt.duration(t.getWork()),
-                        Fmt.money(t.getCost(), currency),
-                        Fmt.duration(t.getTotalSlack()),
-                        Fmt.yesNo(t.getCritical()),
-                        Fmt.yesNo(t.getMilestone()),
-                        Fmt.yesNo(r.isSummary()),
-                        Fmt.yesNo(t.getActive()),
-                        Fmt.date(t.getDeadline()),
-                        Fmt.text(t.getNotes()));
+                for (int i = 0; i < cols.size(); i++) {
+                    Columns.Column c = cols.get(i);
+                    cells[i] = c == notes ? Fmt.text(r.task.getNotes()) : columns.text(c, r);
+                }
+                writeLine(w, cells);
             }
         }
     }

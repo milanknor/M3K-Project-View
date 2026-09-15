@@ -22,6 +22,7 @@ import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSeparator;
 import javax.swing.JSplitPane;
@@ -81,8 +82,11 @@ public final class MainWindow extends JFrame {
     private static final int RECENT_MAX = 8;
 
     final TaskTree tree = new TaskTree();
-    final TaskTableModel model = new TaskTableModel(tree);
+    final Columns columns = new Columns();
+    final TaskTableModel model = new TaskTableModel(tree, columns);
     final JTable table = new JTable(model);
+    Columns.Column sortColumn;
+    boolean sortAscending = true;
     final GanttPanel gantt = new GanttPanel(tree, table);
     final DetailsPanel details = new DetailsPanel();
     final ResourcePanel resources = new ResourcePanel();
@@ -125,16 +129,40 @@ public final class MainWindow extends JFrame {
         table.setGridColor(Theme.GRID);
         table.setFillsViewportHeight(false);
         table.setIntercellSpacing(new Dimension(0, 1));
-        table.getTableHeader().setReorderingAllowed(false);
+        table.getTableHeader().setReorderingAllowed(true);
         table.getTableHeader().setPreferredSize(new Dimension(0, Theme.HEADER));
         table.getTableHeader().setFont(Theme.BOLD.deriveFont(12f));
+        table.getTableHeader().setToolTipText("Kliknutí řadí (vzestupně / sestupně / podle souboru), pravé tlačítko vybírá sloupce, tažením se mění pořadí a šířka.");
         table.setSelectionBackground(Theme.SELECTION);
         table.setSelectionForeground(Theme.INK);
-        for (TaskTableModel.Col c : TaskTableModel.Col.values()) {
-            TableColumn col = table.getColumnModel().getColumn(c.ordinal());
-            col.setPreferredWidth(c.width);
-            col.setCellRenderer(new TaskCellRenderer(c));
-        }
+        details.setColumns(columns);
+        applyColumns(loadColumnSetting());
+        table.getTableHeader().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.isPopupTrigger() || SwingUtilities.isRightMouseButton(e)) {
+                    return;
+                }
+                int view = table.getTableHeader().columnAtPoint(e.getPoint());
+                if (view >= 0 && e.getClickCount() == 1 && table.getTableHeader().getDraggedColumn() == null) {
+                    sortBy(model.columnAt(table.convertColumnIndexToModel(view)));
+                }
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showColumnChooser(e.getX(), e.getY());
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    showColumnChooser(e.getX(), e.getY());
+                }
+            }
+        });
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 int r = table.getSelectedRow();
@@ -151,7 +179,7 @@ public final class MainWindow extends JFrame {
                     return;
                 }
                 TaskTree.Row row = tree.visible().get(r);
-                if (c == TaskTableModel.Col.NAME.ordinal() && row.isSummary() && e.getClickCount() == 1) {
+                if (c >= 0 && model.columnAt(table.convertColumnIndexToModel(c)) == Columns.NAME && row.isSummary() && e.getClickCount() == 1) {
                     Rectangle cell = table.getCellRect(r, c, false);
                     int glyphStart = cell.x + 4 + row.depth * 16;
                     if (e.getX() >= glyphStart && e.getX() <= glyphStart + 18) {
@@ -267,6 +295,13 @@ public final class MainWindow extends JFrame {
         }));
         view.add(item("Sbalit vše", KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), () -> {
             tree.collapseAll();
+            refresh();
+        }));
+        view.add(item("Sloupce tabulky…", null, () -> showColumnChooser(0, Theme.HEADER)));
+        view.add(item("Zrušit řazení", null, () -> {
+            sortColumn = null;
+            tree.setOrder(null);
+            updateHeaderTitles();
             refresh();
         }));
         view.addSeparator();
@@ -490,6 +525,177 @@ public final class MainWindow extends JFrame {
         }
     }
 
+    // ---------------------------------------------------------------- sloupce a řazení
+
+    /** Uložené nastavení sloupců: "klíč:šířka,klíč:šířka,…" (v pořadí zobrazení). */
+    private List<String[]> loadColumnSetting() {
+        List<String[]> out = new ArrayList<>();
+        String v = prefs.get("columns", "");
+        if (!v.isBlank()) {
+            for (String part : v.split(",")) {
+                int i = part.lastIndexOf(':');
+                if (i > 0) {
+                    out.add(new String[]{part.substring(0, i), part.substring(i + 1)});
+                }
+            }
+        }
+        if (out.isEmpty()) {
+            for (String k : Columns.DEFAULT_KEYS) {
+                out.add(new String[]{k, ""});
+            }
+        }
+        return out;
+    }
+
+    /** Nastaví zobrazené sloupce (klíč + volitelná šířka); klíče neznámé v tomto projektu se přeskočí, ale zůstávají uložené. */
+    void applyColumns(List<String[]> setting) {
+        StringBuilder store = new StringBuilder();
+        List<Columns.Column> shown = new ArrayList<>();
+        List<Integer> widths = new ArrayList<>();
+        for (String[] kv : setting) {
+            if (store.length() > 0) {
+                store.append(',');
+            }
+            store.append(kv[0]).append(':').append(kv[1]);
+            Columns.Column c = columns.byKey(kv[0]);
+            if (c != null && !shown.contains(c)) {
+                shown.add(c);
+                int w = c.width;
+                try {
+                    if (!kv[1].isEmpty()) {
+                        w = Math.max(30, Integer.parseInt(kv[1]));
+                    }
+                } catch (NumberFormatException ignored) {
+                    w = c.width;
+                }
+                widths.add(w);
+            }
+        }
+        prefs.put("columns", store.toString());
+        model.setShown(shown);
+        for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
+            TableColumn col = table.getColumnModel().getColumn(i);
+            col.setPreferredWidth(widths.get(col.getModelIndex()));
+            col.setCellRenderer(new TaskCellRenderer());
+        }
+        updateHeaderTitles();
+    }
+
+    /** Aktuální sloupce v pořadí zobrazení se šířkami (pro uložení). */
+    private List<String[]> currentColumnSetting() {
+        List<String[]> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
+            TableColumn col = table.getColumnModel().getColumn(i);
+            Columns.Column c = model.columnAt(col.getModelIndex());
+            if (c != null) {
+                out.add(new String[]{c.key, String.valueOf(col.getWidth() > 0 ? col.getWidth() : col.getPreferredWidth())});
+                seen.add(c.key);
+            }
+        }
+        // sloupce uložené dříve, ale v tomto projektu neexistující (vlastní pole), zůstanou zapamatované
+        for (String[] kv : loadColumnSetting()) {
+            if (!seen.contains(kv[0]) && columns.byKey(kv[0]) == null) {
+                out.add(kv);
+            }
+        }
+        return out;
+    }
+
+    private void showColumnChooser(int x, int y) {
+        JPopupMenu menu = new JPopupMenu();
+        List<Columns.Column> shown = model.shown();
+        JMenu[] byCategory = new JMenu[Columns.Category.values().length];
+        for (Columns.Category cat : Columns.Category.values()) {
+            byCategory[cat.ordinal()] = new JMenu(cat.label);
+        }
+        for (Columns.Column c : columns.all()) {
+            JCheckBoxMenuItem mi = new JCheckBoxMenuItem(c.title, shown.contains(c));
+            mi.addActionListener(e -> toggleColumn(c, mi.isSelected()));
+            byCategory[c.category.ordinal()].add(mi);
+        }
+        JLabel head = new JLabel("  Sloupce tabulky");
+        head.setFont(Theme.BOLD);
+        head.setForeground(Theme.MUTED);
+        menu.add(head);
+        menu.addSeparator();
+        for (JMenu m : byCategory) {
+            if (m.getItemCount() > 0) {
+                menu.add(m);
+            }
+        }
+        if (columns.custom().isEmpty()) {
+            JMenuItem none = new JMenuItem("Vlastní pole (tento soubor žádná nemá)");
+            none.setEnabled(false);
+            menu.add(none);
+        }
+        menu.addSeparator();
+        menu.add(item("Výchozí sloupce", null, () -> {
+            List<String[]> def = new ArrayList<>();
+            for (String k : Columns.DEFAULT_KEYS) {
+                def.add(new String[]{k, ""});
+            }
+            applyColumns(def);
+        }));
+        menu.add(item("Přizpůsobit šířky obsahu", null, this::autoSizeColumns));
+        menu.show(table.getTableHeader(), x, y);
+    }
+
+    private void toggleColumn(Columns.Column c, boolean show) {
+        List<String[]> setting = currentColumnSetting();
+        setting.removeIf(kv -> kv[0].equals(c.key));
+        if (show) {
+            setting.add(new String[]{c.key, ""});
+        }
+        applyColumns(setting);
+    }
+
+    private void autoSizeColumns() {
+        java.awt.FontMetrics fm = table.getFontMetrics(Theme.BOLD);
+        for (int v = 0; v < table.getColumnModel().getColumnCount(); v++) {
+            TableColumn col = table.getColumnModel().getColumn(v);
+            Columns.Column c = model.columnAt(col.getModelIndex());
+            int w = fm.stringWidth(String.valueOf(col.getHeaderValue())) + 20;
+            int rows = Math.min(tree.visible().size(), 500);
+            for (int r = 0; r < rows; r++) {
+                TaskTree.Row row = tree.visible().get(r);
+                int indent = c == Columns.NAME ? 20 + row.depth * 16 : 12;
+                w = Math.max(w, fm.stringWidth(columns.text(c, row)) + indent);
+            }
+            col.setPreferredWidth(Math.min(600, w));
+        }
+    }
+
+    void sortBy(Columns.Column c) {
+        if (c == null) {
+            return;
+        }
+        if (sortColumn != c) {
+            sortColumn = c;
+            sortAscending = true;
+        } else if (sortAscending) {
+            sortAscending = false;
+        } else {
+            sortColumn = null;
+        }
+        tree.setOrder(sortColumn == null ? null : columns.comparator(sortColumn, sortAscending));
+        updateHeaderTitles();
+        refresh();
+        status.setText(sortColumn == null ? "Řazení zrušeno – pořadí ze souboru."
+                : "Seřazeno podle „" + sortColumn.title + "“ " + (sortAscending ? "vzestupně" : "sestupně") + " v rámci každé úrovně osnovy.");
+    }
+
+    private void updateHeaderTitles() {
+        for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
+            TableColumn col = table.getColumnModel().getColumn(i);
+            Columns.Column c = model.columnAt(col.getModelIndex());
+            if (c != null) {
+                col.setHeaderValue(c == sortColumn ? c.title + (sortAscending ? " ▲" : " ▼") : c.title);
+            }
+        }
+        table.getTableHeader().repaint();
+    }
+
     // ---------------------------------------------------------------- akce
 
     private java.util.Optional<TaskTree.Row> selectedRow() {
@@ -706,10 +912,12 @@ public final class MainWindow extends JFrame {
         tree.setQuery("");
         tree.setFilter(TaskTree.Filter.ALL);
         tree.setMaxDepth(0);
+        sortColumn = null;
+        tree.setOrder(null);
         tree.load(file);
-        model.setCurrency(Fmt.text(file.getProjectProperties().getCurrencySymbol()));
+        columns.setProject(file);
         table.clearSelection();
-        model.fireTableDataChanged();
+        applyColumns(currentColumnSetting());
         gantt.setProject(file);
         details.setProject(file);
         details.show(null);
@@ -765,7 +973,11 @@ public final class MainWindow extends JFrame {
             return;
         }
         try {
-            CsvExport.write(f.toPath(), tree.visible(), Fmt.text(project.getProjectProperties().getCurrencySymbol()));
+            List<Columns.Column> shown = new ArrayList<>();
+            for (int i = 0; i < table.getColumnModel().getColumnCount(); i++) {
+                shown.add(model.columnAt(table.getColumnModel().getColumn(i).getModelIndex()));
+            }
+            CsvExport.write(f.toPath(), tree.visible(), columns, shown);
             prefs.put("lastExportDir", f.getParent());
             status.setText("Exportováno " + tree.visible().size() + " řádků do " + f.getAbsolutePath());
         } catch (Exception ex) {
@@ -945,6 +1157,14 @@ public final class MainWindow extends JFrame {
             prefs.putInt("winY", getY());
         }
         prefs.putInt("divider", mainSplit.getDividerLocation());
+        StringBuilder sb = new StringBuilder();
+        for (String[] kv : currentColumnSetting()) {
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(kv[0]).append(':').append(kv[1]);
+        }
+        prefs.put("columns", sb.toString());
     }
 
     // ---------------------------------------------------------------- nápověda
@@ -972,7 +1192,7 @@ public final class MainWindow extends JFrame {
         String text = "<html><body style='font-family:Segoe UI;font-size:10pt;width:420px'>"
                 + "<div style='font-size:14pt'>" + APP_NAME_HTML + " " + VERSION + "</div>"
                 + "Prohlížeč souborů Microsoft Project (pouze pro čtení).<br>"
-                + "Autor: " + AUTHOR + ". Volně šiřitelný program, licence MIT (soubor LICENSE.txt).<br><br>"
+                + "Autor: " + AUTHOR + ". Freeware – zdarma k použití i šíření v nezměněné podobě (Nápověda → Licence…).<br><br>"
                 + "Čtení souborů zajišťuje knihovna <b>MPXJ</b> (https://www.mpxj.org, licence LGPL 2.1+). "
                 + "Licence všech knihoven třetích stran: Nápověda → Licence… (a složka <b>licenses</b> vedle programu).<br>"
                 + "Běhové prostředí: Java " + System.getProperty("java.version") + " (" + System.getProperty("java.vendor") + ").<br><br>"
@@ -985,13 +1205,8 @@ public final class MainWindow extends JFrame {
 
     private final class TaskCellRenderer extends DefaultTableCellRenderer {
         private static final long serialVersionUID = 1L;
-        private final TaskTableModel.Col col;
         private int glyph; // 0 nic, 1 rozbaleno, 2 sbaleno, 3 milník
         private int glyphX;
-
-        TaskCellRenderer(TaskTableModel.Col col) {
-            this.col = col;
-        }
 
         @Override
         protected void paintComponent(java.awt.Graphics g) {
@@ -1036,17 +1251,18 @@ public final class MainWindow extends JFrame {
             }
             int left = 6;
             glyph = 0;
+            Columns.Column col = model.columnAt(t.convertColumnIndexToModel(c));
             setHorizontalAlignment(SwingConstants.LEFT);
-            if (col == TaskTableModel.Col.NAME) {
+            if (col == Columns.NAME) {
                 glyph = row.isSummary() ? (tree.isCollapsed(row) ? 2 : 1) : task.getMilestone() ? 3 : 0;
                 glyphX = 6 + row.depth * 16;
                 left = glyphX + 14;
-            } else if (col == TaskTableModel.Col.ID || col == TaskTableModel.Col.DURATION || col == TaskTableModel.Col.PERCENT
-                    || col == TaskTableModel.Col.WORK || col == TaskTableModel.Col.COST || col == TaskTableModel.Col.SLACK) {
+            } else if (col != null && col.align == Columns.Align.RIGHT) {
                 setHorizontalAlignment(SwingConstants.RIGHT);
             }
             setBorder(BorderFactory.createEmptyBorder(0, left, 0, 6));
-            setToolTipText(col == TaskTableModel.Col.NAME ? Fmt.text(task.getName()) : null);
+            String text = value == null ? "" : value.toString();
+            setToolTipText(col == Columns.NAME ? Fmt.text(task.getName()) : text.length() > 20 ? text : null);
             return this;
         }
     }

@@ -104,7 +104,7 @@ def main():
         "M3K Project View - licence knihoven tretich stran",
         "=================================================",
         "",
-        "Program M3K Project View je sireny pod licenci MIT (soubor LICENSE.txt).",
+        "Program M3K Project View je freeware (licencni podminky v souboru LICENSE.txt).",
         "Obsahuje nasledujici knihovny tretich stran, ktere zustavaji pod svymi",
         "puvodnimi licencemi. Texty licenci a soubory NOTICE jsou v teto slozce",
         "(podslozka podle nazvu knihovny); spolecne texty: Apache-2.0.txt, LGPL-2.1.txt.",
@@ -133,7 +133,7 @@ def main():
     # index.txt: "titulek|cesta" - seznam pro dialog Licence v aplikaci (LICENSE.txt
     # do slozky se zdroji prikopiruje build.ps1)
     index = [
-        u"M3K Project View – licence MIT|LICENSE.txt",
+        u"M3K Project View – licenční podmínky|LICENSE.txt",
         u"Přehled knihoven třetích stran|THIRD-PARTY.txt",
     ]
     for name, version, lic, url, base, files in rows:

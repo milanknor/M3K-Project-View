@@ -82,7 +82,7 @@ final class LicenseDialog extends JDialog {
         split.setBorder(null);
 
         JPanel root = new JPanel(new BorderLayout());
-        JLabel intro = new JLabel("<html>" + MainWindow.APP_NAME_HTML + " je volně šiřitelný program pod licencí MIT.<br>"
+        JLabel intro = new JLabel("<html>" + MainWindow.APP_NAME_HTML + " je freeware – zdarma k použití i k dalšímu šíření v nezměněné podobě.<br>"
                 + "Knihovny třetích stran a běhové prostředí Java mají vlastní licence; "
                 + "stejné texty jsou i ve složce <b>licenses</b> vedle programu.</html>");
         intro.setBorder(BorderFactory.createEmptyBorder(10, 12, 8, 12));
