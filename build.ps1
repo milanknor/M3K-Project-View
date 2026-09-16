@@ -16,6 +16,15 @@
   -Run       po sestavení spustí aplikaci (volitelně s cestou k souboru v -File).
 
   Cesta k JDK 21: proměnná prostředí MSPV_JDK, jinak JAVA_HOME, jinak výchozí níže.
+
+  Podpis (volitelný, bez nastavení se přeskočí – Windows pak hlásí „Neznámý vydavatel“):
+    MSPV_CERT [+ MSPV_CERT_PASS]  soubor .pfx s certifikátem
+    MSPV_CERT_THUMBPRINT          otisk certifikátu v úložišti Windows (HW token)
+    MSPV_SIGN_CMD                 vlastní skript, který dostane soubor jako argument
+                                  (cloudové podepisování / HSM)
+    MSPV_TIMESTAMP                server časového razítka (výchozí DigiCert)
+    MSPV_SIGNTOOL                 cesta k signtool.exe (jinak se hledá ve Windows SDK)
+  Vedle instalátoru a ZIPu vždy vznikne soubor .sha256 s otiskem k ověření.
 #>
 param(
     [switch]$Package,
@@ -29,7 +38,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $root = $PSScriptRoot
 Set-Location $root
-$version = "0.2.0"
+$version = "0.2.1"
 $appName = "M3K Project View"
 if ($Installer) { $Package = $true }
 
@@ -95,6 +104,68 @@ if (-not $SkipTests) {
     Assert-Ok "--ui-test"
 }
 
+# ---- podpis a otisky ---------------------------------------------------------
+
+function Get-SignTool {
+    if ($env:MSPV_SIGNTOOL -and (Test-Path $env:MSPV_SIGNTOOL)) { return $env:MSPV_SIGNTOOL }
+    $cmd = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName | Select-Object -Last 1
+    if ($sdk) { return $sdk.FullName }
+    return $null
+}
+
+function Test-SigningConfigured {
+    return [bool]($env:MSPV_SIGN_CMD -or $env:MSPV_CERT -or $env:MSPV_CERT_THUMBPRINT)
+}
+
+# Podepíše soubor certifikátem podle proměnných prostředí a ověří výsledek.
+function Invoke-Signing($path) {
+    $name = [IO.Path]::GetFileName($path)
+    # jpackage označuje spouštěcí soubor jen pro čtení – signtool by hlásil „Access is denied“
+    $item = Get-Item $path
+    if ($item.IsReadOnly) { $item.IsReadOnly = $false }
+    if ($env:MSPV_SIGN_CMD) {
+        & $env:MSPV_SIGN_CMD $path
+        Assert-Ok "podpis $name"
+    } else {
+        $signtool = Get-SignTool
+        if (-not $signtool) {
+            throw "signtool.exe nenalezen. Nainstalujte Windows SDK, nebo nastavte MSPV_SIGNTOOL na cestu k signtool.exe."
+        }
+        $ts = if ($env:MSPV_TIMESTAMP) { $env:MSPV_TIMESTAMP } else { "http://timestamp.digicert.com" }
+        $a = @("sign", "/fd", "SHA256", "/td", "SHA256", "/tr", $ts, "/d", $appName)
+        if ($env:MSPV_CERT) {
+            if (-not (Test-Path $env:MSPV_CERT)) { throw "Certifikát nenalezen: $env:MSPV_CERT" }
+            $a += @("/f", $env:MSPV_CERT)
+            if ($env:MSPV_CERT_PASS) { $a += @("/p", $env:MSPV_CERT_PASS) }
+        } else {
+            $a += @("/sha1", $env:MSPV_CERT_THUMBPRINT)
+        }
+        $a += $path
+        & $signtool @a
+        Assert-Ok "signtool ($name)"
+    }
+    $sig = Get-AuthenticodeSignature $path
+    if ($sig.Status -eq "NotSigned" -or $sig.Status -eq "HashMismatch") {
+        throw "Podpis souboru $name selhal: $($sig.Status) – $($sig.StatusMessage)"
+    }
+    if ($sig.Status -ne "Valid") {
+        # např. testovací certifikát bez důvěryhodného kořene nebo nedostupná kontrola odvolání
+        Write-Warning ("Soubor {0} je podepsaný, ale řetěz důvěry se neověřil: {1}" -f $name, $sig.Status)
+    }
+    Write-Host ("Podepsáno: {0} – {1}" -f $name, $sig.SignerCertificate.Subject)
+}
+
+# Zapíše <soubor>.sha256 ve formátu nástrojů sha256sum/certutil.
+function Write-Sha256($path) {
+    $hash = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLower()
+    $name = [IO.Path]::GetFileName($path)
+    [IO.File]::WriteAllText("$path.sha256", "$hash  $name`r`n", [Text.UTF8Encoding]::new($false))
+    Write-Host ("SHA-256: {0}  {1}" -f $hash, $name)
+}
+
 # ---- balíček -----------------------------------------------------------------
 if ($Package) {
     $input = "$root\build\input"
@@ -145,9 +216,17 @@ if ($Package) {
     Copy-Item "$root\lib\licenses" "$appDir\licenses" -Recurse
     if (Test-Path "$root\build\icon-doc.ico") { Copy-Item "$root\build\icon-doc.ico" "$appDir\app\doc.ico" }
 
+    # podpis spouštěcího souboru ještě před zabalením, aby ho měl ZIP i instalátor
+    if (Test-SigningConfigured) {
+        Invoke-Signing "$appDir\$appName.exe"
+    } else {
+        Write-Host "Podpis přeskočen (nenastaveno MSPV_CERT / MSPV_CERT_THUMBPRINT / MSPV_SIGN_CMD) – Windows bude hlásit „Neznámý vydavatel“."
+    }
+
     $zip = "$dist\M3K-Project-View-Windows.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }
     Compress-Archive -Path $appDir -DestinationPath $zip
+    Write-Sha256 $zip
     Write-Host "Hotový balíček: $appDir"
     Write-Host "ZIP: $zip"
 }
@@ -173,6 +252,8 @@ if ($Installer) {
     Assert-Ok "ISCC"
     $setup = "$dist\M3K-Project-View-$version-Setup.exe"
     if (-not (Test-Path $setup)) { throw "Instalátor nevznikl: $setup" }
+    if (Test-SigningConfigured) { Invoke-Signing $setup }
+    Write-Sha256 $setup
     Write-Host ("Instalátor: {0} ({1:N1} MB)" -f $setup, ((Get-Item $setup).Length / 1MB))
 }
 

@@ -1,6 +1,6 @@
 # M3K Project View
 
-Verze 0.2.0 · Autor: Milan Knor · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
+Verze 0.2.1 · Autor: Milan Knor · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
 (návrh v `Codex\2026-09-15\ko\outputs\M3K-Project-View`)
 
 Prohlížeč souborů Microsoft Project pro Windows – **pouze pro čtení**, bez nutnosti
@@ -69,7 +69,7 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
 
 ## Instalace
 
-Spusťte `dist\M3K-Project-View-0.2.0-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
+Spusťte `dist\M3K-Project-View-0.2.1-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
 jen pro aktuálního uživatele do `%LOCALAPPDATA%\Programs\M3K Project View` – bez práv
 správce a bez výzvy UAC. Volitelně zástupce na ploše a přidružení souborů
 `.mpp`, `.mpt` a `.mpx` (zaškrtnuto předem jen tehdy, když v systému žádný program
@@ -77,7 +77,24 @@ pro `.mpp` není – Microsoft Project tedy nepřebije). Program se vždy objev�
 „Otevřít v programu“. Odinstalace je přes Nastavení → Aplikace; na konci se zeptá,
 zda smazat i uložené nastavení (nedávné soubory).
 
-Tichá instalace: `M3K-Project-View-0.2.0-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
+Tichá instalace: `M3K-Project-View-0.2.1-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
+
+### Upozornění „Neznámý vydavatel“
+
+Instalátor není podepsaný certifikátem, takže u souboru **staženého prohlížečem** zobrazí
+Windows SmartScreen hlášku „Vydavatel: Neznámý“. Nejde o nález viru – jen o nepodepsaný
+a málo stahovaný soubor. Co s tím:
+
+- Kopírovat instalátor Průzkumníkem ze síťové složky; soubory z intranetu nedostávají
+  značku „Mark of the Web“ a hláška se neobjeví. U již staženého souboru stačí pravý
+  klik → Vlastnosti → **Odblokovat**.
+- Ověřit si integritu otiskem, který vzniká vedle instalátoru i ZIPu (`.sha256`):
+  `certutil -hashfile M3K-Project-View-0.2.1-Setup.exe SHA256` a porovnat řetězce.
+- Podepsat instalátor certifikátem – `build.ps1` to udělá sám, jakmile je nastavená
+  proměnná `MSPV_CERT` (soubor .pfx, heslo v `MSPV_CERT_PASS`), `MSPV_CERT_THUMBPRINT`
+  (certifikát v úložišti Windows, např. na HW tokenu) nebo `MSPV_SIGN_CMD` (vlastní
+  skript pro cloudové podepisování). Podepisuje se spouštěcí soubor aplikace i instalátor,
+  vždy s časovým razítkem.
 
 ## Spuštění bez instalace
 
