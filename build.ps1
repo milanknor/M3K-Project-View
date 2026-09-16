@@ -12,6 +12,12 @@
              dist\M3K-Project-View-<verze>-Setup.exe pomocí Inno Setup 6
              (installer\setup.iss). Cesta k ISCC.exe: proměnná MSPV_ISCC, jinak
              obvyklá umístění Inno Setupu.
+  -Msi       navíc (zahrnuje -Package) sestaví dist\M3K-Project-View-<verze>.msi
+             pro hromadné nasazení (Intune/SCCM/GPO): instalace pro všechny
+             uživatele, tiše přes „msiexec /i soubor.msi /qn“. Vyžaduje WiX
+             Toolset 3 (proměnná MSPV_WIX, PATH, build\wix nebo Program Files).
+  -KeepAppImage  znovu nesestaví dist\<název>\ – použije existující složku.
+             Slouží k zabalení aplikace, jejíž .exe podepsal někdo jiný.
   -SkipTests přeskočí testy.
   -Run       po sestavení spustí aplikaci (volitelně s cestou k souboru v -File).
 
@@ -29,6 +35,8 @@
 param(
     [switch]$Package,
     [switch]$Installer,
+    [switch]$Msi,
+    [switch]$KeepAppImage,
     [switch]$SkipTests,
     [switch]$Run,
     [string]$File = ""
@@ -40,7 +48,9 @@ $root = $PSScriptRoot
 Set-Location $root
 $version = "0.2.1"
 $appName = "M3K Project View"
-if ($Installer) { $Package = $true }
+# stálý UpgradeCode MSI – nikdy neměnit, jinak se nová verze nenainstaluje přes starou
+$msiUpgradeUuid = "9F2B1C57-4E3A-4D8B-9A61-7C0D8B2F4A73"
+if ($Installer -or $Msi) { $Package = $true }
 
 # ---- JDK -------------------------------------------------------------------
 $jdk = $env:MSPV_JDK
@@ -158,6 +168,51 @@ function Invoke-Signing($path) {
     Write-Host ("Podepsáno: {0} – {1}" -f $name, $sig.SignerCertificate.Subject)
 }
 
+# Složka s WiX 3 (candle.exe/light.exe) pro jpackage --type msi; null = nenalezeno.
+function Get-WixDir {
+    if ($env:MSPV_WIX -and (Test-Path "$env:MSPV_WIX\candle.exe")) { return $env:MSPV_WIX }
+    $cmd = Get-Command candle.exe -ErrorAction SilentlyContinue
+    if ($cmd) { return (Split-Path $cmd.Source) }
+    if (Test-Path "$root\build\wix\candle.exe") { return "$root\build\wix" }
+    $pf = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin\candle.exe", "$env:ProgramFiles\WiX Toolset v3*\bin\candle.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName | Select-Object -Last 1
+    if ($pf) { return (Split-Path $pf.FullName) }
+    return $null
+}
+
+# jpackage plánuje RemoveExistingProducts na sekvenci 798, tedy ještě před
+# InstallValidate/InstallInitialize – mimo instalační transakci. Windows Installer
+# to považuje za chybu (ICE27) a aktualizace přes starší verzi může selhat.
+# Posuneme akci na 1501 (hned po InstallInitialize = standardní „early removal“).
+function Repair-MsiSequence($path) {
+    $inst = New-Object -ComObject WindowsInstaller.Installer
+    $db = $inst.GetType().InvokeMember("OpenDatabase", "InvokeMethod", $null, $inst, @($path, 1))  # 1 = transact
+    $view = $db.GetType().InvokeMember("OpenView", "InvokeMethod", $null, $db,
+        @('UPDATE `InstallExecuteSequence` SET `Sequence` = 1501 WHERE `Action` = ''RemoveExistingProducts'''))
+    $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null)
+    $view.GetType().InvokeMember("Close", "InvokeMethod", $null, $view, $null)
+    $db.GetType().InvokeMember("Commit", "InvokeMethod", $null, $db, $null)
+    # bez uvolnění COM objektů drží Windows Installer soubor otevřený
+    foreach ($o in @($view, $db, $inst)) { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($o) }
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+    Write-Host "MSI: RemoveExistingProducts přeplánováno na 1501 (kvůli ICE27)."
+}
+
+# Kontrola MSI validátorem ICE (WiX smoke.exe); chyby zastaví sestavení.
+function Test-Msi($path, $wixDir) {
+    $smoke = Join-Path $wixDir "smoke.exe"
+    if (-not (Test-Path $smoke)) { return }
+    $out = & $smoke -nologo $path 2>&1 | ForEach-Object { $_.ToString() }
+    $errors = @($out | Where-Object { $_ -match ": error " })
+    $warnings = @($out | Where-Object { $_ -match ": warning " })
+    Write-Host ("MSI ověřeno (ICE): {0} chyb, {1} varování" -f $errors.Count, $warnings.Count)
+    if ($errors.Count -gt 0) {
+        $errors | ForEach-Object { Write-Host "  $_" }
+        throw "MSI neprošlo kontrolou ICE."
+    }
+}
+
 # Zapíše <soubor>.sha256 ve formátu nástrojů sha256sum/certutil.
 function Write-Sha256($path) {
     $hash = (Get-FileHash -Algorithm SHA256 $path).Hash.ToLower()
@@ -168,11 +223,9 @@ function Write-Sha256($path) {
 
 # ---- balíček -----------------------------------------------------------------
 if ($Package) {
-    $input = "$root\build\input"
-    if (Test-Path $input) { Remove-Item $input -Recurse -Force }
-    New-Item -ItemType Directory -Force $input | Out-Null
-    Copy-Item "$root\build\viewer.jar" $input
-    Copy-Item "$root\lib\*.jar" $input
+    $dist = "$root\dist"
+    $appDir = "$dist\$appName"
+    New-Item -ItemType Directory -Force $dist | Out-Null
 
     $icon = "$root\build\icon.ico"
     if (-not (Test-Path $icon) -or -not (Test-Path "$root\build\icon-doc.ico")) {
@@ -180,11 +233,19 @@ if ($Package) {
         & $py "$root\tools\make_icon.py" $icon
         if ($LASTEXITCODE -ne 0) { Write-Warning "Ikonu se nepodařilo vygenerovat, použije se výchozí."; $icon = $null }
     }
+}
 
-    $dist = "$root\dist"
-    $appDir = "$dist\$appName"
+# vlastní sestavení app-image (s -KeepAppImage se použije existující, např. s cizím podpisem)
+if ($Package -and $KeepAppImage -and (Test-Path "$appDir\$appName.exe")) {
+    Write-Host "Používám existující app-image: $appDir"
+} elseif ($Package) {
+    $input = "$root\build\input"
+    if (Test-Path $input) { Remove-Item $input -Recurse -Force }
+    New-Item -ItemType Directory -Force $input | Out-Null
+    Copy-Item "$root\build\viewer.jar" $input
+    Copy-Item "$root\lib\*.jar" $input
+
     if (Test-Path $appDir) { Remove-Item $appDir -Recurse -Force }
-    New-Item -ItemType Directory -Force $dist | Out-Null
     $args = @(
         "--type", "app-image",
         "--input", $input,
@@ -215,12 +276,20 @@ if ($Package) {
     Copy-Item "$root\LICENSE.txt" "$appDir\"
     Copy-Item "$root\lib\licenses" "$appDir\licenses" -Recurse
     if (Test-Path "$root\build\icon-doc.ico") { Copy-Item "$root\build\icon-doc.ico" "$appDir\app\doc.ico" }
+}
 
-    # podpis spouštěcího souboru ještě před zabalením, aby ho měl ZIP i instalátor
+# ---- podpis aplikace, ZIP a otisk -------------------------------------------
+if ($Package) {
+    # podpis spouštěcího souboru ještě před zabalením, aby ho měl ZIP, instalátor i MSI
     if (Test-SigningConfigured) {
         Invoke-Signing "$appDir\$appName.exe"
     } else {
-        Write-Host "Podpis přeskočen (nenastaveno MSPV_CERT / MSPV_CERT_THUMBPRINT / MSPV_SIGN_CMD) – Windows bude hlásit „Neznámý vydavatel“."
+        $sig = Get-AuthenticodeSignature "$appDir\$appName.exe"
+        if ($sig.Status -ne "NotSigned") {
+            Write-Host ("Spouštěcí soubor je už podepsaný: {0}" -f $sig.SignerCertificate.Subject)
+        } else {
+            Write-Host "Podpis přeskočen (nenastaveno MSPV_CERT / MSPV_CERT_THUMBPRINT / MSPV_SIGN_CMD) – Windows bude hlásit „Neznámý vydavatel“."
+        }
     }
 
     $zip = "$dist\M3K-Project-View-Windows.zip"
@@ -255,6 +324,42 @@ if ($Installer) {
     if (Test-SigningConfigured) { Invoke-Signing $setup }
     Write-Sha256 $setup
     Write-Host ("Instalátor: {0} ({1:N1} MB)" -f $setup, ((Get-Item $setup).Length / 1MB))
+}
+
+# ---- MSI pro hromadné nasazení (jpackage + WiX 3) ----------------------------
+if ($Msi) {
+    $wix = Get-WixDir
+    if (-not $wix) {
+        throw "WiX Toolset 3 nenalezen. Nainstalujte ho (winget install WiXToolset.WiXToolset), rozbalte binárky wix314-binaries.zip do build\wix, nebo nastavte MSPV_WIX."
+    }
+    Write-Host "WiX: $wix"
+    $env:PATH = "$wix;$env:PATH"
+
+    # Přiřazení souborů (.mpp…) se do MSI záměrně nedávají: jpackage sice do balíčku
+    # zapíše ProgID i příkaz pro otevření, ale klíč přípony se při instalaci nevytvoří
+    # (ověřeno na JDK 21), takže by asociace stejně nefungovala a v registru by zůstávaly
+    # osiřelé ProgID. Přípony řeší instalátor EXE, u hromadného nasazení pak politika
+    # (Intune/GPO „Set Default Associations“), což je na Windows 10/11 stejně jediný
+    # spolehlivý způsob, jak výchozí program nastavit.
+    $msiDir = "$root\build\msi"
+    if (Test-Path $msiDir) { [IO.Directory]::Delete($msiDir, $true) }
+    New-Item -ItemType Directory -Force $msiDir | Out-Null
+    Write-Host "jpackage --type msi…"
+    & $jpackage --type msi --app-image $appDir --name $appName --app-version $version --dest $msiDir `
+        --vendor "Milan Knor" --description "Prohlizec souboru Microsoft Project" `
+        --copyright "(c) 2026 Milan Knor. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)" `
+        --win-menu --win-menu-group $appName --win-upgrade-uuid $msiUpgradeUuid
+    Assert-Ok "jpackage --type msi"
+    $built = Get-ChildItem "$msiDir\*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $built) { throw "MSI nevzniklo ve složce $msiDir." }
+    $msiPath = "$dist\M3K-Project-View-$version.msi"
+    Move-Item $built.FullName $msiPath -Force
+    Repair-MsiSequence $msiPath
+    Test-Msi $msiPath $wix
+    # podpis až po úpravách databáze, jinak by ho změna souboru zneplatnila
+    if (Test-SigningConfigured) { Invoke-Signing $msiPath }
+    Write-Sha256 $msiPath
+    Write-Host ("MSI: {0} ({1:N1} MB)" -f $msiPath, ((Get-Item $msiPath).Length / 1MB))
 }
 
 if ($Run) {

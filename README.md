@@ -79,6 +79,23 @@ zda smazat i uložené nastavení (nedávné soubory).
 
 Tichá instalace: `M3K-Project-View-0.2.1-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
 
+### Hromadné nasazení (MSI)
+
+Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.2.1.msi`
+(sestaví se příkazem `.\build.ps1 -Msi`). Instaluje se **pro všechny uživatele** do
+`C:\Program Files\M3K Project View`, takže vyžaduje práva správce – přesně tak, jak
+nasazovací nástroje pracují:
+
+```powershell
+msiexec /i "M3K-Project-View-0.2.1.msi" /qn
+msiexec /x "M3K-Project-View-0.2.1.msi" /qn
+```
+
+MSI vytvoří zástupce v nabídce Start a má stálý UpgradeCode, takže novější verze
+starší automaticky nahradí. **Přiřazení přípon `.mpp` a spol. MSI nenastavuje** –
+na Windows 10/11 může výchozí program stejně spolehlivě určit jen uživatel nebo
+politika „Set Default Associations“; pro jednotlivce je k tomu určený instalátor EXE.
+
 ### Upozornění „Neznámý vydavatel“
 
 Instalátor není podepsaný certifikátem, takže u souboru **staženého prohlížečem** zobrazí
@@ -118,6 +135,13 @@ vypisuje `licenses\THIRD-PARTY.txt` v hotovém balíčku).
 # navíc instalátor dist\M3K-Project-View-<verze>-Setup.exe (vyžaduje Inno Setup 6:
 # winget install JRSoftware.InnoSetup; cestu k ISCC.exe lze zadat v MSPV_ISCC)
 .\build.ps1 -Installer
+
+# navíc MSI pro hromadné nasazení (vyžaduje WiX Toolset 3: winget install
+# WiXToolset.WiXToolset, nebo rozbalit wix314-binaries.zip do build\wix; MSPV_WIX)
+.\build.ps1 -Msi
+
+# zabalit aplikaci, jejíž .exe podepsal někdo jiný (nepřegeneruje app-image)
+.\build.ps1 -Installer -Msi -KeepAppImage -SkipTests
 
 # spustit z build (volitelně se souborem)
 .\build.ps1 -SkipTests -Run -File "C:\cesta\projekt.mpp"
