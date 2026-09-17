@@ -78,7 +78,7 @@ public final class MainWindow extends JFrame {
     public static final String APP_NAME = "M3K Project View";
     /** Název s oranžovou trojkou podle loga (pro HTML popisky). */
     static final String APP_NAME_HTML = "<b>M<span style='color:#FF790A'>3</span>K</b> Project View";
-    public static final String VERSION = "0.3.0";
+    public static final String VERSION = "0.3.1";
     public static final String AUTHOR = "Milan Knor";
     /** Otevřená okna (každé = jeden soubor); po zavření posledního se aplikace ukončí. */
     static final List<MainWindow> WINDOWS = new ArrayList<>();

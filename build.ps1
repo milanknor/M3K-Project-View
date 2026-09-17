@@ -53,7 +53,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $root = $PSScriptRoot
 Set-Location $root
-$version = "0.3.0"
+$version = "0.3.1"
 $appName = "M3K Project View"
 # stálý UpgradeCode MSI – nikdy neměnit, jinak se nová verze nenainstaluje přes starou
 $msiUpgradeUuid = "9F2B1C57-4E3A-4D8B-9A61-7C0D8B2F4A73"
@@ -97,7 +97,7 @@ Assert-Ok "javac"
 
 # licence třetích stran → zdroje v jaru (dialog Nápověda → Licence)
 Write-Host "Licence třetích stran…"
-& $py "$root\tools\collect_licenses.py"
+& $py "$root\tools\collect_licenses.py" --jdk $jdk
 Assert-Ok "collect_licenses.py"
 $licRes = "$classes\cz\msproject\viewer\licenses"
 New-Item -ItemType Directory -Force $licRes | Out-Null
@@ -279,6 +279,22 @@ if ($Package -and $KeepAppImage -and (Test-Path "$appDir\$appName.exe")) {
     Write-Host "jpackage…"
     & $jpackage @args
     Assert-Ok "jpackage"
+
+    # jlink z release souboru vyhodí údaje o vydavateli; bez nich nejde dohledat,
+    # ze kterého sestavení OpenJDK runtime pochází (GPLv2 – odpovídající zdrojový kód)
+    $release = "$appDir\runtime\release"
+    if (Test-Path $release) {
+        $src = @{}
+        foreach ($line in Get-Content "$jdk\release") {
+            if ($line -match '^([A-Z_]+)="?(.*?)"?$') { $src[$Matches[1]] = $Matches[2] }
+        }
+        $add = @()
+        foreach ($key in "IMPLEMENTOR", "IMPLEMENTOR_VERSION", "JAVA_RUNTIME_VERSION", "JAVA_VERSION_DATE", "SOURCE_REPO", "SOURCE", "BUILD_SOURCE_REPO", "BUILD_SOURCE", "OS_NAME", "OS_ARCH") {
+            if ($src.ContainsKey($key)) { $add += ('{0}="{1}"' -f $key, $src[$key]) }
+        }
+        $add += 'RUNTIME_SOURCE_OFFER="licenses\OPENJDK-SOURCE.txt"'
+        Add-Content -Path $release -Value $add -Encoding ascii
+    }
 
     Copy-Item "$root\README.md" "$appDir\CTETE-ME.md"
     Copy-Item "$root\LICENSE.txt" "$appDir\"

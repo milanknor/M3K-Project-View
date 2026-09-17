@@ -1,6 +1,6 @@
 # M3K Project View
 
-Verze 0.3.0 · Autor: Milan Knor · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
+Verze 0.3.1 · Autor: Milan Knor · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
 (návrh v `Codex\2026-09-15\ko\outputs\M3K-Project-View`)
 
 Prohlížeč souborů Microsoft Project pro Windows – **pouze pro čtení**, bez nutnosti
@@ -86,7 +86,7 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
 
 ## Instalace
 
-Spusťte `dist\M3K-Project-View-0.3.0-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
+Spusťte `dist\M3K-Project-View-0.3.1-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
 jen pro aktuálního uživatele do `%LOCALAPPDATA%\Programs\M3K Project View` – bez práv
 správce a bez výzvy UAC. Volitelně zástupce na ploše a přidružení souborů
 `.mpp`, `.mpt` a `.mpx` (zaškrtnuto předem jen tehdy, když v systému žádný program
@@ -94,18 +94,18 @@ pro `.mpp` není – Microsoft Project tedy nepřebije). Program se vždy objev�
 „Otevřít v programu“. Odinstalace je přes Nastavení → Aplikace; na konci se zeptá,
 zda smazat i uložené nastavení (nedávné soubory).
 
-Tichá instalace: `M3K-Project-View-0.3.0-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
+Tichá instalace: `M3K-Project-View-0.3.1-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
 
 ### Hromadné nasazení (MSI)
 
-Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.3.0.msi`
+Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.3.1.msi`
 (sestaví se příkazem `.\build.ps1 -Msi`). Instaluje se **pro všechny uživatele** do
 `C:\Program Files\M3K Project View`, takže vyžaduje práva správce – přesně tak, jak
 nasazovací nástroje pracují:
 
 ```powershell
-msiexec /i "M3K-Project-View-0.3.0.msi" /qn
-msiexec /x "M3K-Project-View-0.3.0.msi" /qn
+msiexec /i "M3K-Project-View-0.3.1.msi" /qn
+msiexec /x "M3K-Project-View-0.3.1.msi" /qn
 ```
 
 MSI vytvoří zástupce v nabídce Start a má stálý UpgradeCode, takže novější verze
@@ -123,7 +123,7 @@ a málo stahovaný soubor. Co s tím:
   značku „Mark of the Web“ a hláška se neobjeví. U již staženého souboru stačí pravý
   klik → Vlastnosti → **Odblokovat**.
 - Ověřit si integritu otiskem, který vzniká vedle instalátoru i ZIPu (`.sha256`):
-  `certutil -hashfile M3K-Project-View-0.3.0-Setup.exe SHA256` a porovnat řetězce.
+  `certutil -hashfile M3K-Project-View-0.3.1-Setup.exe SHA256` a porovnat řetězce.
 - Podepsat instalátor certifikátem – `build.ps1` to udělá sám, jakmile je nastavená
   proměnná `MSPV_CERT` (soubor .pfx, heslo v `MSPV_CERT_PASS`), `MSPV_CERT_THUMBPRINT`
   (certifikát v úložišti Windows, např. na HW tokenu) nebo `MSPV_SIGN_CMD` (vlastní
@@ -209,6 +209,23 @@ licencemi. Jejich texty jsou přímo v aplikaci (Nápověda → Licence…), ve 
 v `runtime\legal\`. MPXJ je přiložena jako samostatný `app\mpxj.jar`, takže ji lze
 podle LGPL nahradit (licenční podmínky to výslovně dovolují, jak LGPL vyžaduje).
 Instalátor zobrazí licenční podmínky před instalací.
+
+### Běhové prostředí Java
+
+Balíček obsahuje běhové prostředí sestavené nástroji `jlink` a `jpackage` z **Eclipse
+Temurin (OpenJDK 21)**. To je pod **GPL v2 s výjimkou Classpath** a s dodatkem OpenJDK
+Assembly Exception: výjimka Classpath dovoluje spojit prostředí s programem, který pod
+GPL není, takže zdrojový kód aplikace zveřejňovat nemusíme, a Assembly Exception
+výslovně počítá s tím, že se prostředí šíří zabalené s aplikací.
+
+GPL v2 ale po každém, kdo šíří binárky, chce zdrojové kódy nebo písemnou nabídku na
+jejich poskytnutí. Proto je v balíčku soubor `licenses\OPENJDK-SOURCE.txt` (vzniká při
+sestavení, vidíte ho i v Nápověda → Licence): uvádí přesné sestavení Temurinu, repozitář
+i revizi zdrojáků, odkaz na zdrojový balík Adoptia a nabídku poskytnout zdrojový kód po
+dobu tří let na adrese `info@m3ksound.cz`. Do `runtime\release` build doplní `IMPLEMENTOR`,
+`IMPLEMENTOR_VERSION` a `SOURCE_REPO`, které `jlink` jinak zahazuje — bez nich by z balíčku
+nešlo poznat, ke kterému sestavení zdrojáky patří. Prostředí se nijak neupravuje, jen se
+z něj vybírá podmnožina modulů.
 
 Microsoft Project je ochranná známka Microsoft Corporation; tento program není
 produktem Microsoftu.

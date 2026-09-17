@@ -49,6 +49,94 @@ LIBRARIES = {
 ENTRY_RE = re.compile(r"^META-INF/(.*/)?(LICENSE|NOTICE|COPYING)[^/]*$", re.IGNORECASE)
 VERSION_RE = re.compile(r"^(.*?)-(\d[\w.]*)\.jar$")
 
+# Kontakt pro nabidku zdrojovych kodu OpenJDK podle GPLv2, clanku 3b.
+SOURCE_CONTACT = "info@m3ksound.cz"
+
+
+def read_release(jdk_dir):
+    """Precte soubor release z JDK (klic="hodnota" na radek)."""
+    info = {}
+    path = os.path.join(jdk_dir, "release")
+    if not os.path.isfile(path):
+        return info
+    with io.open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "=" in line:
+                key, value = line.split("=", 1)
+                info[key.strip()] = value.strip().strip('"')
+    return info
+
+
+def write_openjdk_source(jdk_dir):
+    """Vytvori OPENJDK-SOURCE.txt: odkud je behove prostredi a jak ziskat jeho zdrojaky.
+
+    Vraci popisek verze pro souhrn, nebo None, kdyz JDK nebylo predano.
+    """
+    if not jdk_dir:
+        return None
+    info = read_release(jdk_dir)
+    vendor = info.get("IMPLEMENTOR", "neuveden")
+    build = info.get("IMPLEMENTOR_VERSION") or info.get("FULL_VERSION") or info.get("JAVA_VERSION", "neuvedena")
+    java_version = info.get("JAVA_VERSION", "")
+    repo = info.get("SOURCE_REPO", "https://github.com/openjdk/jdk21u")
+    source = info.get("SOURCE", "")
+    build_repo = info.get("BUILD_SOURCE_REPO", "")
+    build_source = info.get("BUILD_SOURCE", "")
+    commit = source.split(":")[-1] if source else ""
+
+    lines = [
+        "M3K Project View - behove prostredi Java (OpenJDK)",
+        "==================================================",
+        "",
+        "Balicek obsahuje behove prostredi Java, ktere vzniklo nastroji jlink a jpackage",
+        "z tohoto sestaveni OpenJDK:",
+        "",
+        "  vydavatel:      %s" % vendor,
+        "  sestaveni:      %s" % build,
+        "  verze Javy:     %s" % java_version,
+        "  zdrojovy kod:   %s%s" % (repo, ("  (revize %s)" % commit) if commit else ""),
+    ]
+    if build_repo:
+        lines.append("  skripty buildu: %s%s" % (build_repo, ("  (revize %s)" % build_source.split(":")[-1]) if build_source else ""))
+    lines += [
+        "",
+        "LICENCE",
+        "-------",
+        "GNU General Public License verze 2 (GPLv2) s vyjimkou Classpath a s dodatkem",
+        "OPENJDK ASSEMBLY EXCEPTION. Plne texty jsou ve slozce runtime\\legal\\ vedle",
+        "programu - kazdy modul ma vlastni LICENSE, ASSEMBLY_EXCEPTION a soubor",
+        "ADDITIONAL_LICENSE_INFO.",
+        "",
+        "Vyjimka Classpath dovoluje spojit toto prostredi s programem, ktery pod GPL",
+        "neni. Licence programu M3K Project View (LICENSE.txt) tim zustava nedotcena",
+        "a zdrojove kody programu nejsou soucasti distribuce.",
+        "",
+        "NABIDKA ZDROJOVEHO KODU (GPLv2, clanek 3b)",
+        "------------------------------------------",
+        "Zdrojove kody uvedeneho sestaveni OpenJDK jsou verejne ke stazeni:",
+        "  * balicek Source pro danou verzi: https://adoptium.net/temurin/releases/",
+        "  * repozitar %s" % repo,
+        "",
+        "Autor programu se nad ramec toho zavazuje po dobu tri let od predani teto",
+        "kopie poskytnout komukoli na pozadani uplny odpovidajici zdrojovy kod vyse",
+        "uvedeneho sestaveni OpenJDK, a to na bezne pouzivanem nosici nebo ke stazeni,",
+        "za cenu nepresahujici naklady na poskytnuti. Pozadavky posilejte na adresu:",
+        "  %s" % SOURCE_CONTACT,
+        "",
+        "UPRAVY",
+        "------",
+        "Prostredi neni programove upravene: obsahuje jen podmnozinu modulu vybranou",
+        "nastrojem jlink (seznam je v souboru runtime\\release). Do tohoto souboru jsou",
+        "pri sestaveni doplneny udaje o puvodnim sestaveni, aby slo dohledat zdrojaky.",
+        "",
+        "Java a OpenJDK jsou ochranne znamky spolecnosti Oracle; Eclipse a Temurin jsou",
+        "ochranne znamky Eclipse Foundation. Tento program neni produktem zadne z nich.",
+        "",
+    ]
+    with io.open(os.path.join(OUT, "OPENJDK-SOURCE.txt"), "w", encoding="utf-8", newline="\r\n") as f:
+        f.write("\n".join(lines))
+    return "%s %s" % (vendor, build)
+
 
 def split_name(jar):
     m = VERSION_RE.match(jar)
@@ -78,9 +166,15 @@ def extract(jar_path, dest):
 
 
 def main():
+    jdk_dir = None
+    args = sys.argv[1:]
+    for i, a in enumerate(args):
+        if a == "--jdk" and i + 1 < len(args):
+            jdk_dir = args[i + 1]
     if os.path.isdir(OUT):
         shutil.rmtree(OUT)
     os.makedirs(OUT)
+    runtime = write_openjdk_source(jdk_dir)
 
     jars = sorted(f for f in os.listdir(LIB) if f.lower().endswith(".jar"))
     rows = []
@@ -113,8 +207,9 @@ def main():
         "Knihovna MPXJ (LGPL) je prilozena jako samostatny soubor app\\mpxj.jar, takze",
         "ji lze nahradit jinou verzi v souladu s LGPL. Zdrojove kody MPXJ: https://github.com/joniles/mpxj",
         "",
-        "Behove prostredi Java (Eclipse Temurin, OpenJDK 21) je sireno pod GNU GPL v2",
-        "s vyjimkou Classpath; jeho licencni texty jsou ve slozce runtime\\legal\\.",
+        "Behove prostredi Java (%s) je sireno pod GNU GPL v2 s vyjimkou" % (runtime or "OpenJDK"),
+        "Classpath. Licencni texty jsou ve slozce runtime\\legal\\, presne sestaveni,",
+        "odkaz na zdrojove kody a nabidka jejich poskytnuti jsou v OPENJDK-SOURCE.txt.",
         "",
     ]
     for name, version, lic, url, base, files in rows:
@@ -137,6 +232,8 @@ def main():
         u"M3K Project View – licenční podmínky|LICENSE.txt",
         u"Přehled knihoven třetích stran|THIRD-PARTY.txt",
     ]
+    if runtime:
+        index.append(u"Java (OpenJDK) – sestavení, licence a zdrojové kódy|OPENJDK-SOURCE.txt")
     for name, version, lic, url, base, files in rows:
         label = ("%s %s" % (name, version)).strip()
         if files:

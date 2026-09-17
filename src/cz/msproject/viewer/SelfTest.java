@@ -779,6 +779,11 @@ public final class SelfTest {
                 for (LicenseDialog.Entry e : licenses) {
                     check(LicenseDialog.text(e.resource()).length() > 50, "Prázdný licenční text: " + e.resource());
                 }
+                // GPLv2 vyžaduje u šířených binárek odkaz na zdrojové kódy běhového prostředí
+                String openjdk = LicenseDialog.text("OPENJDK-SOURCE.txt");
+                check(openjdk.contains("Temurin") && openjdk.contains("adoptium/jdk21u")
+                        && openjdk.contains("GPLv2") && openjdk.contains("@"),
+                        "OPENJDK-SOURCE.txt neuvádí sestavení, zdrojáky nebo nabídku jejich poskytnutí");
                 LicenseDialog dlg = new LicenseDialog(w);
                 check(dlg.currentText().contains("Milan Knor"), "Dialog Licence nezobrazil licenci programu");
                 dlg.addNotify();
