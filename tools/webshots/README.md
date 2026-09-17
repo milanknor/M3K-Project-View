@@ -47,7 +47,8 @@ Copy-Item "$tmp\out-dark\gantt.png" web\assets\gantt-dark.png
 
 `Shots` před snímkem posune dělicí příčku na 820 px (šířky sloupců si program
 od verze 0.3.0 přizpůsobí sám) a ve Vytížení vybere druhý zdroj, aby spodní panel
-nebyl prázdný. Kromě záložek vzniká `check.png` — dialog kontroly kvality plánu
+nebyl prázdný. Kromě záložek vzniká `colors.png` (diagram obarvený podle zdrojů i s legendou),
+`check.png` — dialog kontroly kvality plánu
 nad ztmaveným oknem — a `gantt-full.png`, celý diagram v plné velikosti pro výřez
 do hlavičky stránky.
 

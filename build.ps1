@@ -53,7 +53,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $root = $PSScriptRoot
 Set-Location $root
-$version = "0.3.1"
+$version = "0.4.0"
 $appName = "M3K Project View"
 # stálý UpgradeCode MSI – nikdy neměnit, jinak se nová verze nenainstaluje přes starou
 $msiUpgradeUuid = "9F2B1C57-4E3A-4D8B-9A61-7C0D8B2F4A73"
@@ -262,9 +262,9 @@ if ($Package -and $KeepAppImage -and (Test-Path "$appDir\$appName.exe")) {
         "--main-jar", "viewer.jar",
         "--main-class", "cz.msproject.viewer.App",
         "--app-version", $version,
-        "--vendor", "Milan Knor",
+        "--vendor", "M3KSoft.cz",
         "--description", "Prohlizec souboru Microsoft Project",
-        "--copyright", "(c) 2026 Milan Knor. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)",
+        "--copyright", "(c) 2026 M3KSoft.cz. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)",
         "--add-modules", "java.desktop,java.sql,java.naming,java.prefs,java.logging,java.xml,java.management,java.security.jgss,jdk.charsets,jdk.unsupported,jdk.crypto.ec",
         "--java-options", "-Dlog4j2.loggerContextFactory=org.apache.logging.log4j.simple.SimpleLoggerContextFactory",
         "--java-options", "-Dfile.encoding=UTF-8",
@@ -370,8 +370,8 @@ if ($Msi) {
     New-Item -ItemType Directory -Force $msiDir | Out-Null
     Write-Host "jpackage --type msi…"
     & $jpackage --type msi --app-image $appDir --name $appName --app-version $version --dest $msiDir `
-        --vendor "Milan Knor" --description "Prohlizec souboru Microsoft Project" `
-        --copyright "(c) 2026 Milan Knor. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)" `
+        --vendor "M3KSoft.cz" --description "Prohlizec souboru Microsoft Project" `
+        --copyright "(c) 2026 M3KSoft.cz. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)" `
         --win-menu --win-menu-group $appName --win-upgrade-uuid $msiUpgradeUuid
     Assert-Ok "jpackage --type msi"
     $built = Get-ChildItem "$msiDir\*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1

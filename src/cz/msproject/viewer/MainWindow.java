@@ -78,8 +78,8 @@ public final class MainWindow extends JFrame {
     public static final String APP_NAME = "M3K Project View";
     /** Název s oranžovou trojkou podle loga (pro HTML popisky). */
     static final String APP_NAME_HTML = "<b>M<span style='color:#FF790A'>3</span>K</b> Project View";
-    public static final String VERSION = "0.3.1";
-    public static final String AUTHOR = "Milan Knor";
+    public static final String VERSION = "0.4.0";
+    public static final String AUTHOR = "M3KSoft.cz";
     /** Otevřená okna (každé = jeden soubor); po zavření posledního se aplikace ukončí. */
     static final List<MainWindow> WINDOWS = new ArrayList<>();
     /** Během přestavby oken (změna vzhledu) se po zavření posledního okna neukončuje. */
@@ -129,6 +129,8 @@ public final class MainWindow extends JFrame {
     boolean loading;
     /** Po otevření souboru přizpůsobit šířky sloupců obsahu – dokud si je uživatel nenastaví sám. */
     private boolean autoFitWidths = prefs.getBoolean("autoFitColumns", true);
+    /** Obarvení pruhů podle zvoleného pole; null = podle kritičnosti. */
+    private BarColors barColors;
     /** Čas poslední změny souboru při načtení – hlídá přepsání na síťovém disku. */
     private long loadedStamp;
     private boolean suppressEvents;
@@ -449,6 +451,45 @@ public final class MainWindow extends JFrame {
             }
         });
         view.add(views);
+        JMenu colorBy = new JMenu(Str.t("Obarvit pruhy podle"));
+        colorBy.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                colorBy.removeAll();
+                JCheckBoxMenuItem none = new JCheckBoxMenuItem(Str.t("Kritické cesty (výchozí)"), barColors == null);
+                none.addActionListener(ev -> setBarColorColumn(null));
+                colorBy.add(none);
+                colorBy.addSeparator();
+                for (String key : new String[]{"resources", "level", "kind", "taskType", "priority", "calendar", "wbs"}) {
+                    Columns.Column c = columns.byKey(key);
+                    if (c != null) {
+                        colorBy.add(colorItem(c));
+                    }
+                }
+                List<Columns.Column> custom = columns.custom();
+                colorBy.addSeparator();
+                if (custom.isEmpty()) {
+                    JMenuItem noFields = new JMenuItem(Str.t("Vlastní pole (tento soubor žádná nemá)"));
+                    noFields.setEnabled(false);
+                    colorBy.add(noFields);
+                } else {
+                    JMenu fields = new JMenu(Str.t("Vlastní pole"));
+                    for (Columns.Column c : custom) {
+                        fields.add(colorItem(c));
+                    }
+                    colorBy.add(fields);
+                }
+            }
+
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {
+            }
+        });
+        view.add(colorBy);
         view.add(Ui.item(Str.t("Sloupce tabulky…"), null, () -> showColumnChooser(0, Theme.HEADER)));
         view.add(Ui.item(Str.t("Zrušit řazení"), null, () -> {
             sortColumn = null;
@@ -1367,6 +1408,45 @@ public final class MainWindow extends JFrame {
         }.execute();
     }
 
+    // ---------------------------------------------------------------- obarvení pruhů
+
+    private JCheckBoxMenuItem colorItem(Columns.Column c) {
+        JCheckBoxMenuItem mi = new JCheckBoxMenuItem(c.title, barColors != null && barColors.column() == c);
+        mi.addActionListener(e -> setBarColorColumn(c));
+        return mi;
+    }
+
+    /** Obarví pruhy v diagramu podle hodnoty sloupce (null = podle kritické cesty). */
+    void setBarColorColumn(Columns.Column c) {
+        buildBarColors(c);
+        if (c == null) {
+            prefs.remove("barColorColumn");
+            status.setText(Str.t("Pruhy se barví podle kritické cesty."));
+            return;
+        }
+        prefs.put("barColorColumn", c.key);
+        if (barColors == null) {
+            status.setText(Str.t("Sloupec „") + c.title + Str.t("“ je u úkolů prázdný – pruhy zůstávají podle kritické cesty."));
+        } else {
+            status.setText(Str.t("Pruhy se barví podle: ") + c.title + "   (" + barColors.legend().size() + Str.t(" hodnot v legendě)"));
+        }
+    }
+
+    /** Sestaví obarvení ze všech úkolů projektu, aby legenda nezávisela na filtru. */
+    private void buildBarColors(Columns.Column c) {
+        barColors = c == null || project == null ? null : BarColors.of(c, columns, tree.all());
+        if (barColors != null && barColors.isEmpty()) {
+            barColors = null;
+        }
+        gantt.setBarColors(barColors);
+    }
+
+    /** Po otevření souboru obnoví dřívější volbu obarvení (sloupec nemusí v souboru existovat). */
+    private void restoreBarColors() {
+        String key = prefs.get("barColorColumn", "");
+        buildBarColors(key.isBlank() ? null : columns.byKey(key));
+    }
+
     // ---------------------------------------------------------------- nástroje
 
     /** Rozbor kvality plánu (chybějící vazby, tvrdá omezení, rezervy, prodlevy…). */
@@ -1614,6 +1694,7 @@ public final class MainWindow extends JFrame {
         if (autoFitWidths) {
             autoSizeColumns();
         }
+        restoreBarColors();
         updateBaselineChoices();
         gantt.setProject(file);
         details.setProject(file);
@@ -1681,7 +1762,13 @@ public final class MainWindow extends JFrame {
         int rowsHeight = Math.max(1, tree.visible().size() * Theme.ROW);
         int h = Theme.HEADER + rowsHeight;
         int tw = (int) Math.ceil(tableWidth * scale);
-        BufferedImage img = new BufferedImage(tw + chartImg.getWidth(), Math.max((int) Math.ceil(h * scale), chartImg.getHeight()), BufferedImage.TYPE_INT_RGB);
+        // u obarvených pruhů se pod obrázek přidá pruh s legendou (jde i do tisku a PDF)
+        BarColors legend = gantt.getBarColors();
+        int imageWidth = tw + chartImg.getWidth();
+        int legendRows = legend == null ? 0 : legendRows(legend, (int) Math.round(imageWidth / scale));
+        int legendH = legend == null ? 0 : (int) Math.ceil((10 + legendRows * 18) * scale);
+        BufferedImage img = new BufferedImage(imageWidth,
+                Math.max((int) Math.ceil(h * scale), chartImg.getHeight()) + legendH, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setColor(Theme.BG);
         g.fillRect(0, 0, img.getWidth(), img.getHeight());
@@ -1703,9 +1790,61 @@ public final class MainWindow extends JFrame {
         g.scale(1 / scale, 1 / scale);
         g.drawImage(chartImg, tw, 0, null);
         g.setColor(Theme.GRID_STRONG);
-        g.drawLine(tw, 0, tw, img.getHeight());
+        g.drawLine(tw, 0, tw, img.getHeight() - legendH);
+        if (legend != null) {
+            paintLegend(g, legend, img.getWidth(), img.getHeight() - legendH, scale);
+        }
         g.dispose();
         return img;
+    }
+
+    /** Kolik řádků zabere legenda při dané šířce (v nezvětšených bodech). */
+    private int legendRows(BarColors legend, int width) {
+        java.awt.FontMetrics bold = table.getFontMetrics(Theme.BOLD.deriveFont(11f));
+        java.awt.FontMetrics base = table.getFontMetrics(Theme.BASE.deriveFont(11f));
+        int limit = Math.max(200, width - 12);
+        int x = 12 + bold.stringWidth(legend.column().title + ":") + 14;
+        int rows = 1;
+        for (java.util.Map.Entry<String, java.awt.Color> e : legend.legend()) {
+            int w = 15 + base.stringWidth(e.getKey()) + 16;
+            if (x > 12 && x + w > limit) {
+                x = 12;
+                rows++;
+            }
+            x += w;
+        }
+        return rows;
+    }
+
+    /** Vykreslí pruh s legendou obarvení pod tabulku a diagram (stejné zalamování jako v okně). */
+    private void paintLegend(Graphics2D g, BarColors legend, int width, int top, double scale) {
+        g.setColor(Theme.HEADER_BG);
+        g.fillRect(0, top, width, (int) Math.ceil(10 * scale) + (int) Math.ceil(18 * scale) * legendRows(legend, (int) Math.round(width / scale)));
+        g.setColor(Theme.GRID_STRONG);
+        g.drawLine(0, top, width, top);
+        g.scale(scale, scale);
+        int limit = Math.max(200, (int) Math.round(width / scale) - 12);
+        int baseline = (int) Math.round(top / scale) + 16;
+        int x = 12;
+        g.setFont(Theme.BOLD.deriveFont(11f));
+        g.setColor(Theme.MUTED);
+        String title = legend.column().title + ":";
+        g.drawString(title, x, baseline);
+        x += g.getFontMetrics().stringWidth(title) + 14;
+        g.setFont(Theme.BASE.deriveFont(11f));
+        for (java.util.Map.Entry<String, java.awt.Color> e : legend.legend()) {
+            int w = 15 + g.getFontMetrics().stringWidth(e.getKey()) + 16;
+            if (x > 12 && x + w > limit) {
+                x = 12;
+                baseline += 18;
+            }
+            g.setColor(e.getValue());
+            g.fillRoundRect(x, baseline - 9, 11, 10, 3, 3);
+            g.setColor(Theme.INK);
+            g.drawString(e.getKey(), x + 15, baseline);
+            x += w;
+        }
+        g.scale(1 / scale, 1 / scale);
     }
 
     // ---------------------------------------------------------------- nedávné soubory, stav okna

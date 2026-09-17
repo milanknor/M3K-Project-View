@@ -1,5 +1,5 @@
 M3K Project View – licenční podmínky (freeware)
-Copyright (c) 2026 Milan Knor
+Copyright (c) 2026 M3KSoft.cz
 
 1. Program M3K Project View („Program“) je poskytován zdarma (freeware). Smíte jej
    používat bez omezení počtu instalací, k soukromým i komerčním účelům.

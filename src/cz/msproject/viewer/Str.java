@@ -231,6 +231,7 @@ public final class Str {
                 {"Ctrl+0 zobrazí celý projekt, Ctrl+T posune na dnešek, Ctrl+G na vybraný úkol. ", "Ctrl+0 shows the whole project, Ctrl+T scrolls to today, Ctrl+G to the selected task. "},
                 {"Modrá = úkol, červená = kritický úkol, černý pruh = souhrn, kosočtverec = milník, zelená šipka = termín, ", "Blue = task, red = critical task, black bar = summary, diamond = milestone, green arrow = deadline, "},
                 {"šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu.<br><br>", "grey bar = baseline, red vertical line = today, blue = status date.<br><br>"},
+                {"šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu. ", "grey bar = baseline, red vertical line = today, blue = status date. "},
                 {"<b>Export</b><br>Ctrl+E uloží zobrazené úkoly do CSV (otevře se v Excelu), Ctrl+Shift+P uloží diagram jako PNG.<br><br>", "<b>Export</b><br>Ctrl+E saves visible tasks to CSV (opens in Excel), Ctrl+Shift+P saves the chart as PNG.<br><br>"},
                 {"Čeština", "Czech"}, {"English", "English"},
                 // chyby
@@ -247,6 +248,16 @@ public final class Str {
                 {"Zmenšete měřítko nebo sbalte část osnovy.", "Reduce the scale or collapse part of the outline."},
                 {"Změna jazyka se projeví po restartu programu. Restartovat nyní?", "The language change takes effect after restarting the program. Restart now?"},
                 {"Restart se nezdařil – ukončete a spusťte program ručně.", "Restart failed – please close and start the program manually."},
+                {"Zobrazit → Obarvit pruhy podle obarví úkoly podle zdroje, úrovně osnovy nebo vlastního pole ",
+                        "View → Colour Bars By colours tasks by resource, outline level or a custom field "},
+                {"a pod diagram doplní legendu (kritické úkoly si nechají červený obrys).<br><br>",
+                        "and adds a legend below the chart (critical tasks keep their red outline).<br><br>"},
+                // obarvení pruhů podle pole
+                {"Obarvit pruhy podle", "Colour Bars By"}, {"Kritické cesty (výchozí)", "Critical Path (default)"},
+                {"ostatní", "other"}, {"Pruhy se barví podle kritické cesty.", "Bars are coloured by the critical path."},
+                {"Sloupec „", "Column “"},
+                {"“ je u úkolů prázdný – pruhy zůstávají podle kritické cesty.", "” is empty for these tasks – bars stay coloured by the critical path."},
+                {"Pruhy se barví podle: ", "Bars coloured by: "}, {" hodnot v legendě)", " values in the legend)"},
                 // nástroje: kontrola kvality, porovnání verzí, export do Excelu
                 {"Nástroje", "Tools"},
                 {"Kontrola kvality plánu…", "Schedule Quality Check…"},

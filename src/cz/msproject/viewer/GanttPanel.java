@@ -82,6 +82,9 @@ public final class GanttPanel extends javax.swing.JPanel {
     private final Chart chart = new Chart();
     private final JScrollPane scroll;
     private final Map<LocalDate, Boolean> workingCache = new HashMap<>();
+    /** Obarvení pruhů podle zvoleného pole; null = podle kritičnosti (výchozí). */
+    private BarColors barColors;
+    private final LegendBar legendBar = new LegendBar();
 
     private ProjectFile project;
     private ProjectCalendar calendar;
@@ -131,7 +134,106 @@ public final class GanttPanel extends javax.swing.JPanel {
             }
         });
         add(scroll, BorderLayout.CENTER);
+        legendBar.setOpaque(true);
+        legendBar.setBackground(Theme.HEADER_BG);
+        legendBar.setBorder(javax.swing.BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.GRID_STRONG));
+        legendBar.setVisible(false);
+        add(legendBar, BorderLayout.SOUTH);
         setFont(Theme.BASE);
+    }
+
+    /** Nastaví obarvení pruhů podle pole (null = podle kritičnosti) a doplní legendu. */
+    public void setBarColors(BarColors colors) {
+        barColors = colors == null || colors.isEmpty() ? null : colors;
+        legendBar.removeAll();
+        if (barColors != null) {
+            javax.swing.JLabel title = new javax.swing.JLabel(barColors.column().title + ":");
+            title.setFont(Theme.BOLD.deriveFont(11f));
+            title.setForeground(Theme.MUTED);
+            legendBar.add(title);
+            for (java.util.Map.Entry<String, Color> e : barColors.legend()) {
+                legendBar.add(new LegendChip(e.getKey(), e.getValue()));
+            }
+        }
+        legendBar.setVisible(barColors != null);
+        legendBar.revalidate();
+        legendBar.repaint();
+        chart.repaint();
+    }
+
+    /** Aktuální obarvení (pro export obrázku s legendou). */
+    public BarColors getBarColors() {
+        return barColors;
+    }
+
+    /** Pruh legendy pod diagramem; položky se zalamují do dalších řádků, ať jsou vidět všechny. */
+    private static final class LegendBar extends javax.swing.JPanel {
+        private static final long serialVersionUID = 1L;
+        private static final int GAP = 14;
+        private static final int ROW = 18;
+
+        LegendBar() {
+            super((java.awt.LayoutManager) null);
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            int w = getWidth() > 0 ? getWidth() : 900;
+            return place(w, false);
+        }
+
+        @Override
+        public void doLayout() {
+            place(getWidth(), true);
+        }
+
+        /** Rozmístí položky do řádků; vrací potřebnou velikost. */
+        private Dimension place(int width, boolean apply) {
+            int x = GAP;
+            int y = 4;
+            int maxX = x;
+            for (java.awt.Component c : getComponents()) {
+                Dimension d = c.getPreferredSize();
+                if (x > GAP && x + d.width > Math.max(120, width - GAP)) {
+                    x = GAP;
+                    y += ROW;
+                }
+                if (apply) {
+                    c.setBounds(x, y, d.width, Math.max(d.height, ROW - 4));
+                }
+                x += d.width + GAP;
+                maxX = Math.max(maxX, x);
+            }
+            return new Dimension(Math.min(maxX, Math.max(120, width)), y + ROW);
+        }
+    }
+
+    /** Barevný čtvereček s popiskem do legendy. */
+    private static final class LegendChip extends JComponent {
+        private final String text;
+        private final Color color;
+
+        LegendChip(String text, Color color) {
+            this.text = text;
+            this.color = color;
+            setFont(Theme.BASE.deriveFont(11f));
+            java.awt.FontMetrics fm = getFontMetrics(getFont());
+            setPreferredSize(new java.awt.Dimension(fm.stringWidth(text) + 20, Math.max(14, fm.getHeight())));
+            setToolTipText(text);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING, java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int mid = getHeight() / 2;
+            g.setColor(color);
+            g.fillRoundRect(0, mid - 5, 11, 10, 3, 3);
+            g.setColor(Theme.INK);
+            g.setFont(getFont());
+            g.drawString(text, 15, mid + g.getFontMetrics().getAscent() / 2 - 1);
+            g.dispose();
+        }
     }
 
     public JScrollPane getScrollPane() {
@@ -765,7 +867,8 @@ public final class GanttPanel extends javax.swing.JPanel {
             if (t.getMilestone() || (!row.isSummary() && b - a < 1 && t.getDuration() != null && t.getDuration().getDuration() == 0)) {
                 int cx = t.getMilestone() && t.getFinish() != null ? b : a;
                 int cy = y0 + 13;
-                g.setColor(inactive ? Theme.INACTIVE : critical ? Theme.CRITICAL : Theme.MILESTONE);
+                Color mark = barColors == null ? null : barColors.color(row);
+                g.setColor(inactive ? Theme.INACTIVE : mark != null ? mark : critical ? Theme.CRITICAL : Theme.MILESTONE);
                 g.fillPolygon(new int[]{cx, cx + 7, cx, cx - 7}, new int[]{cy - 7, cy, cy + 7, cy}, 4);
                 labelX = cx + 10;
             } else if (row.isSummary()) {
@@ -779,8 +882,11 @@ public final class GanttPanel extends javax.swing.JPanel {
                 int w = Math.max(3, b - a);
                 int h = 13;
                 int y = y0 + 6;
-                Color strong = critical ? Theme.CRITICAL : Theme.TASK;
-                Color light = critical ? Theme.CRITICAL_LIGHT : Theme.TASK_LIGHT;
+                Color custom = barColors == null ? null : barColors.color(row);
+                Color strong = custom != null ? custom : critical ? Theme.CRITICAL : Theme.TASK;
+                Color light = custom != null ? BarColors.lighter(custom) : critical ? Theme.CRITICAL_LIGHT : Theme.TASK_LIGHT;
+                // při obarvení podle pole zůstane kritická cesta poznat aspoň podle obrysu
+                Color outline = custom != null && critical ? Theme.CRITICAL : strong;
                 List<org.mpxj.LocalDateTimeRange> splits = inactive ? List.of() : splits(t);
                 if (inactive) {
                     g.setColor(Theme.INACTIVE);
@@ -815,7 +921,7 @@ public final class GanttPanel extends javax.swing.JPanel {
                             g.fillRoundRect(sa, y, pw, h, 3, 3);
                             remaining -= pw;
                         }
-                        g.setColor(strong);
+                        g.setColor(outline);
                         g.drawRoundRect(sa, y, sw, h, 3, 3);
                         g.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 4f, new float[]{2f, 3f}, 0f));
                     }
@@ -830,7 +936,7 @@ public final class GanttPanel extends javax.swing.JPanel {
                         g.setColor(strong);
                         g.fillRoundRect(a, y, pw, h, 3, 3);
                     }
-                    g.setColor(strong);
+                    g.setColor(outline);
                     g.drawRoundRect(a, y, w, h, 3, 3);
                 }
                 labelX = a + w + 8;

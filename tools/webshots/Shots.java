@@ -38,6 +38,13 @@ public final class Shots {
                 w.validate();
                 shot(w, outDir + "/gantt.png");
 
+                // obarvení pruhů podle zdroje (od verze 0.4.0) i s legendou pod diagramem
+                w.setBarColorColumn(w.columns.byKey("resources"));
+                w.validate();
+                shot(w, outDir + "/colors.png");
+                w.setBarColorColumn(null);
+                w.validate();
+
                 w.tabs.setSelectedIndex(1);   // Časová osa
                 w.timeline.rebuild();
                 w.validate();

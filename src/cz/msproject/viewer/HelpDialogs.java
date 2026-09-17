@@ -21,7 +21,9 @@ final class HelpDialogs {
                 + Str.t("<b>Diagram</b><br>Měřítko: Dny/Týdny/Měsíce/Čtvrtletí/Roky/Přizpůsobit, Ctrl+kolečko myši přibližuje kolem kurzoru, ")
                 + Str.t("Ctrl+0 zobrazí celý projekt, Ctrl+T posune na dnešek, Ctrl+G na vybraný úkol. ")
                 + Str.t("Modrá = úkol, červená = kritický úkol, černý pruh = souhrn, kosočtverec = milník, zelená šipka = termín, ")
-                + Str.t("šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu.<br><br>")
+                + Str.t("šedý pruh = základní plán, červená svislá čára = dnešek, modrá = datum stavu. ")
+                + Str.t("Zobrazit → Obarvit pruhy podle obarví úkoly podle zdroje, úrovně osnovy nebo vlastního pole ")
+                + Str.t("a pod diagram doplní legendu (kritické úkoly si nechají červený obrys).<br><br>")
                 + Str.t("<b>Export</b><br>Ctrl+E uloží zobrazené úkoly do CSV (otevře se v Excelu), Ctrl+Shift+P uloží diagram jako PNG.<br><br>")
                 + Str.t("Aplikace soubory pouze čte a nikam je neodesílá.")
                 + "</body></html>";

@@ -1,6 +1,6 @@
 # M3K Project View
 
-Verze 0.3.1 · Autor: Milan Knor · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
+Verze 0.4.0 · Autor: M3KSoft.cz · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
 (návrh v `Codex\2026-09-15\ko\outputs\M3K-Project-View`)
 
 Prohlížeč souborů Microsoft Project pro Windows – **pouze pro čtení**, bez nutnosti
@@ -22,6 +22,12 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
   podnikových, s aliasy). Výběr pravým tlačítkem na hlavičku, přetahování pořadí,
   šířky; vše se pamatuje. **Řazení** kliknutím na hlavičku (vzestupně / sestupně /
   podle souboru) v rámci každé úrovně osnovy.
+- **Obarvení pruhů podle pole** (Zobrazit → Obarvit pruhy podle): zdroj, úroveň
+  osnovy, druh úkolu, priorita, kalendář, WBS nebo libovolné vlastní pole ze
+  souboru. Nejčastějších dvanáct hodnot dostane barvu, zbytek jednu společnou;
+  pod diagramem se zobrazí legenda, která jde i do PNG, PDF a tisku. Kritické
+  úkoly si i při obarvení nechají červený obrys. U úkolu s více zdroji rozhoduje
+  první z nich.
 - **Uložené pohledy**: sada sloupců, filtr, úroveň osnovy a měřítko pod názvem;
   šířky sloupců se po otevření souboru samy přizpůsobí obsahu (dokud si je
   uživatel nenastaví ručně). Výběr více řádků sčítá ve stavovém řádku práci,
@@ -86,7 +92,7 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
 
 ## Instalace
 
-Spusťte `dist\M3K-Project-View-0.3.1-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
+Spusťte `dist\M3K-Project-View-0.4.0-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
 jen pro aktuálního uživatele do `%LOCALAPPDATA%\Programs\M3K Project View` – bez práv
 správce a bez výzvy UAC. Volitelně zástupce na ploše a přidružení souborů
 `.mpp`, `.mpt` a `.mpx` (zaškrtnuto předem jen tehdy, když v systému žádný program
@@ -94,18 +100,18 @@ pro `.mpp` není – Microsoft Project tedy nepřebije). Program se vždy objev�
 „Otevřít v programu“. Odinstalace je přes Nastavení → Aplikace; na konci se zeptá,
 zda smazat i uložené nastavení (nedávné soubory).
 
-Tichá instalace: `M3K-Project-View-0.3.1-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
+Tichá instalace: `M3K-Project-View-0.4.0-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
 
 ### Hromadné nasazení (MSI)
 
-Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.3.1.msi`
+Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.4.0.msi`
 (sestaví se příkazem `.\build.ps1 -Msi`). Instaluje se **pro všechny uživatele** do
 `C:\Program Files\M3K Project View`, takže vyžaduje práva správce – přesně tak, jak
 nasazovací nástroje pracují:
 
 ```powershell
-msiexec /i "M3K-Project-View-0.3.1.msi" /qn
-msiexec /x "M3K-Project-View-0.3.1.msi" /qn
+msiexec /i "M3K-Project-View-0.4.0.msi" /qn
+msiexec /x "M3K-Project-View-0.4.0.msi" /qn
 ```
 
 MSI vytvoří zástupce v nabídce Start a má stálý UpgradeCode, takže novější verze
@@ -123,7 +129,7 @@ a málo stahovaný soubor. Co s tím:
   značku „Mark of the Web“ a hláška se neobjeví. U již staženého souboru stačí pravý
   klik → Vlastnosti → **Odblokovat**.
 - Ověřit si integritu otiskem, který vzniká vedle instalátoru i ZIPu (`.sha256`):
-  `certutil -hashfile M3K-Project-View-0.3.1-Setup.exe SHA256` a porovnat řetězce.
+  `certutil -hashfile M3K-Project-View-0.4.0-Setup.exe SHA256` a porovnat řetězce.
 - Podepsat instalátor certifikátem – `build.ps1` to udělá sám, jakmile je nastavená
   proměnná `MSPV_CERT` (soubor .pfx, heslo v `MSPV_CERT_PASS`), `MSPV_CERT_THUMBPRINT`
   (certifikát v úložišti Windows, např. na HW tokenu) nebo `MSPV_SIGN_CMD` (vlastní
@@ -198,7 +204,7 @@ build.ps1                  sestavení, testy, balíček, instalátor
 
 ## Licence
 
-Program je **freeware** (© 2026 Milan Knor, `LICENSE.txt`): zdarma k použití i k dalšímu
+Program je **freeware** (© 2026 M3KSoft.cz, `LICENSE.txt`): zdarma k použití i k dalšímu
 šíření v nezměněné podobě; zdrojový kód není součástí distribuce (balíček obsahuje jen
 zkompilovanou aplikaci s běhovým prostředím).
 Knihovny třetích stran (MPXJ – LGPL 2.1+, Apache POI, Jackcess, Jackson, Commons,

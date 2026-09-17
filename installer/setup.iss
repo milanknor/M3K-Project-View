@@ -1,14 +1,14 @@
 ﻿; Instalátor M3K Project View (Inno Setup 6).
 ; Vstup: dist\M3K Project View\ (výstup jpackage app-image z build.ps1 -Package).
 ; Výstup: dist\M3K-Project-View-<verze>-Setup.exe
-; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.3.1 installer\setup.iss)
+; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.4.0 installer\setup.iss)
 
 #ifndef AppVersion
-  #define AppVersion "0.3.1"
+  #define AppVersion "0.4.0"
 #endif
 #define AppName "M3K Project View"
 #define AppExeName "M3K Project View.exe"
-#define AppPublisher "Milan Knor"
+#define AppPublisher "M3KSoft.cz"
 #define ProgId "M3KProjectView.Project"
 #define SrcDir "..\dist\M3K Project View"
 
@@ -18,7 +18,7 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
-AppCopyright=© 2026 Milan Knor. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)
+AppCopyright=© 2026 M3KSoft.cz. MPXJ (LGPL 2.1+), OpenJDK (GPLv2+CE)
 VersionInfoCompany={#AppPublisher}
 VersionInfoVersion={#AppVersion}
 VersionInfoDescription=Instalátor {#AppName}

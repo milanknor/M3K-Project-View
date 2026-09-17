@@ -710,6 +710,34 @@ public final class SelfTest {
                     check(changed == 1, "Porovnání nenašlo právě jednu změnu: " + changed);
                 }
 
+                // obarvení pruhů podle pole: hodnoty, legenda a legenda v exportovaném obrázku
+                Columns.Column kind = w.columns.byKey("kind");
+                check(kind != null, "Chybí sloupec Druh úkolu");
+                BarColors colors = BarColors.of(kind, w.columns, w.tree.all());
+                check(!colors.isEmpty(), "Obarvení podle druhu úkolu nenašlo žádnou hodnotu");
+                check(colors.legend().size() <= 13, "Legenda je příliš dlouhá: " + colors.legend().size());
+                java.util.Set<java.awt.Color> distinct = new java.util.HashSet<>();
+                for (java.util.Map.Entry<String, java.awt.Color> e : colors.legend()) {
+                    check(!e.getKey().isBlank(), "Prázdný popisek v legendě");
+                    check(distinct.add(e.getValue()), "Dvě hodnoty v legendě mají stejnou barvu: " + e.getKey());
+                }
+                for (TaskTree.Row r : w.tree.visible()) {
+                    java.awt.Color c = colors.color(r);
+                    if (r.isSummary()) {
+                        check(c == null, "Souhrnný úkol se obarvil podle pole");
+                    } else if (!colors.value(r).isBlank()) {
+                        check(c != null, "Úkol s vyplněnou hodnotou nedostal barvu: " + r.task.getName());
+                        check(!BarColors.lighter(c).equals(c), "Světlejší odstín se neliší od plné barvy");
+                    }
+                }
+                int plainHeight = w.renderImage().getHeight();
+                w.setBarColorColumn(kind);
+                check(w.gantt.getBarColors() != null, "Obarvení se nepropsalo do diagramu");
+                check(w.renderImage().getHeight() > plainHeight, "Export nepřidal pruh s legendou");
+                w.setBarColorColumn(null);
+                check(w.gantt.getBarColors() == null, "Zrušení obarvení nevrátilo výchozí barvy");
+                check(w.renderImage().getHeight() == plainHeight, "Po zrušení obarvení zůstal v exportu pruh navíc");
+
                 // uložený pohled: uložit, načíst zpět a použít
                 SavedView view = new SavedView("test-pohled", "id:60,name:300", TaskTree.Filter.MILESTONES.name(), "", 0, GanttPanel.Zoom.MONTHS.name());
                 SavedView back = SavedView.deserialize(view.serialize());
@@ -785,7 +813,7 @@ public final class SelfTest {
                         && openjdk.contains("GPLv2") && openjdk.contains("@"),
                         "OPENJDK-SOURCE.txt neuvádí sestavení, zdrojáky nebo nabídku jejich poskytnutí");
                 LicenseDialog dlg = new LicenseDialog(w);
-                check(dlg.currentText().contains("Milan Knor"), "Dialog Licence nezobrazil licenci programu");
+                check(dlg.currentText().contains("M3KSoft.cz"), "Dialog Licence nezobrazil licenci programu");
                 dlg.addNotify();
                 dlg.validate();
                 BufferedImage dlgImg = new BufferedImage(dlg.getWidth(), dlg.getHeight(), BufferedImage.TYPE_INT_RGB);
