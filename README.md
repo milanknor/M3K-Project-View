@@ -143,6 +143,11 @@ vypisuje `licenses\THIRD-PARTY.txt` v hotovém balíčku).
 # zabalit aplikaci, jejíž .exe podepsal někdo jiný (nepřegeneruje app-image)
 .\build.ps1 -Installer -Msi -KeepAppImage -SkipTests
 
+# připravit stránku ke stažení do dist\web\ – šablona web\projectview.html a snímky
+# z web\assets\ se doplní o verzi, datum, velikosti a otisky SHA-256 hotových
+# balíčků (samo zapne -Package -Installer -Msi); obsah dist\web\ jde rovnou na web
+.\build.ps1 -Web
+
 # spustit z build (volitelně se souborem)
 .\build.ps1 -SkipTests -Run -File "C:\cesta\projekt.mpp"
 ```
@@ -162,6 +167,9 @@ lib\licenses\              licence třetích stran (generuje collect_licenses.py
 test\                      testovací soubory MPP8, MPP9, MPP12, MPP14
 tools\make_icon.py         generátor ikony
 tools\collect_licenses.py  vytáhne licence a NOTICE z jarů, vytvoří THIRD-PARTY.txt a index
+tools\webshots\            ukázkový harmonogram a snímky obrazovky pro web (viz README tamtéž)
+web\projectview.html       šablona stránky ke stažení (zástupné texty doplní -Web)
+web\assets\                snímky obrazovky použité na stránce
 installer\setup.iss        instalátor (Inno Setup 6)
 LICENSE.txt                licenční podmínky programu (freeware)
 build.ps1                  sestavení, testy, balíček, instalátor

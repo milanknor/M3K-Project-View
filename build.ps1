@@ -18,6 +18,10 @@
              Toolset 3 (proměnná MSPV_WIX, PATH, build\wix nebo Program Files).
   -KeepAppImage  znovu nesestaví dist\<název>\ – použije existující složku.
              Slouží k zabalení aplikace, jejíž .exe podepsal někdo jiný.
+  -Web       (zahrnuje -Installer -Msi) připraví do dist\web\ stránku ke stažení
+             (šablona web\projectview.html s doplněnou verzí, velikostmi a otisky),
+             snímky obrazovky a všechny instalační soubory. Obsah stačí zkopírovat
+             na web (m3ksound.cz).
   -SkipTests přeskočí testy.
   -Run       po sestavení spustí aplikaci (volitelně s cestou k souboru v -File).
 
@@ -36,6 +40,7 @@ param(
     [switch]$Package,
     [switch]$Installer,
     [switch]$Msi,
+    [switch]$Web,
     [switch]$KeepAppImage,
     [switch]$SkipTests,
     [switch]$Run,
@@ -50,6 +55,7 @@ $version = "0.2.1"
 $appName = "M3K Project View"
 # stálý UpgradeCode MSI – nikdy neměnit, jinak se nová verze nenainstaluje přes starou
 $msiUpgradeUuid = "9F2B1C57-4E3A-4D8B-9A61-7C0D8B2F4A73"
+if ($Web) { $Installer = $true; $Msi = $true }
 if ($Installer -or $Msi) { $Package = $true }
 
 # ---- JDK -------------------------------------------------------------------
@@ -360,6 +366,35 @@ if ($Msi) {
     if (Test-SigningConfigured) { Invoke-Signing $msiPath }
     Write-Sha256 $msiPath
     Write-Host ("MSI: {0} ({1:N1} MB)" -f $msiPath, ((Get-Item $msiPath).Length / 1MB))
+}
+
+# ---- stránka ke stažení ------------------------------------------------------
+if ($Web) {
+    $template = "$root\web\projectview.html"
+    if (-not (Test-Path $template)) { throw "Šablona stránky nenalezena: $template" }
+    $webDir = "$dist\web"
+    if (Test-Path $webDir) { Remove-Item $webDir -Recurse -Force }
+    New-Item -ItemType Directory -Force "$webDir\download" | Out-Null
+    New-Item -ItemType Directory -Force "$webDir\projectview-assets" | Out-Null
+
+    $files = @{}
+    foreach ($item in @(@("EXE", "$dist\M3K-Project-View-$version-Setup.exe"), @("MSI", "$dist\M3K-Project-View-$version.msi"), @("ZIP", "$dist\M3K-Project-View-Windows.zip"))) {
+        $f = Get-Item $item[1]
+        Copy-Item $f.FullName "$webDir\download\" -Force
+        if (Test-Path "$($f.FullName).sha256") { Copy-Item "$($f.FullName).sha256" "$webDir\download\" -Force }
+        $files[$item[0]] = $f.Name
+        $files["$($item[0])_SIZE"] = "{0:N0} MB" -f [Math]::Round($f.Length / 1MB)
+        $files["$($item[0])_SHA"] = (Get-FileHash -Algorithm SHA256 $f.FullName).Hash.ToLower()
+    }
+    Copy-Item "$root\web\assets\*" "$webDir\projectview-assets\" -Force
+
+    $html = [IO.File]::ReadAllText($template, [Text.UTF8Encoding]::new($false))
+    $html = $html.Replace("{{VERSION}}", $version).Replace("{{DATE}}", (Get-Date -Format "d. M. yyyy"))
+    foreach ($k in $files.Keys) { $html = $html.Replace("{{$k}}", $files[$k]) }
+    if ($html -match "\{\{[A-Z_]+\}\}") { throw "Ve stránce zůstal nenahrazený zástupný text: $($Matches[0])" }
+    [IO.File]::WriteAllText("$webDir\projectview.html", $html, [Text.UTF8Encoding]::new($false))
+    Write-Host ("Stránka ke stažení: {0} ({1:N0} MB celkem)" -f "$webDir\projectview.html",
+        ((Get-ChildItem $webDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB))
 }
 
 if ($Run) {
