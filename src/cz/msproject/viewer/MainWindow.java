@@ -36,8 +36,12 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.TransferHandler;
+import javax.swing.event.ChangeEvent;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.TableColumnModelEvent;
+import javax.swing.event.TableColumnModelListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableColumn;
 import java.awt.BorderLayout;
@@ -74,7 +78,7 @@ public final class MainWindow extends JFrame {
     public static final String APP_NAME = "M3K Project View";
     /** Název s oranžovou trojkou podle loga (pro HTML popisky). */
     static final String APP_NAME_HTML = "<b>M<span style='color:#FF790A'>3</span>K</b> Project View";
-    public static final String VERSION = "0.2.1";
+    public static final String VERSION = "0.3.0";
     public static final String AUTHOR = "Milan Knor";
     /** Otevřená okna (každé = jeden soubor); po zavření posledního se aplikace ukončí. */
     static final List<MainWindow> WINDOWS = new ArrayList<>();
@@ -123,6 +127,10 @@ public final class MainWindow extends JFrame {
     ProjectFile project;
     Path currentPath;
     boolean loading;
+    /** Po otevření souboru přizpůsobit šířky sloupců obsahu – dokud si je uživatel nenastaví sám. */
+    private boolean autoFitWidths = prefs.getBoolean("autoFitColumns", true);
+    /** Čas poslední změny souboru při načtení – hlídá přepsání na síťovém disku. */
+    private long loadedStamp;
     private boolean suppressEvents;
 
     public MainWindow() {
@@ -135,7 +143,7 @@ public final class MainWindow extends JFrame {
         // ---- tabulka úkolů ----
         table.setFont(Theme.BASE);
         table.setRowHeight(Theme.ROW);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
         table.setShowVerticalLines(false);
         table.setGridColor(Theme.GRID);
@@ -149,6 +157,31 @@ public final class MainWindow extends JFrame {
         table.setSelectionForeground(Theme.INK);
         details.setColumns(columns);
         applyColumns(loadColumnSetting());
+        // jakmile si uživatel šířku sloupce nastaví sám, přestaneme ji po otevření souboru přepisovat
+        table.getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+            @Override
+            public void columnMarginChanged(ChangeEvent e) {
+                if (table.getTableHeader().getResizingColumn() != null) {
+                    setAutoFitWidths(false);
+                }
+            }
+
+            @Override
+            public void columnAdded(TableColumnModelEvent e) {
+            }
+
+            @Override
+            public void columnRemoved(TableColumnModelEvent e) {
+            }
+
+            @Override
+            public void columnMoved(TableColumnModelEvent e) {
+            }
+
+            @Override
+            public void columnSelectionChanged(ListSelectionEvent e) {
+            }
+        });
         table.getTableHeader().addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -177,8 +210,12 @@ public final class MainWindow extends JFrame {
         });
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                int r = table.getSelectedRow();
+                int r = table.getSelectionModel().getLeadSelectionIndex();
+                if (!table.isRowSelected(r)) {
+                    r = table.getSelectedRow();
+                }
                 details.show(r >= 0 && r < tree.visible().size() ? tree.visible().get(r) : null);
+                updateSelectionStatus();
                 gantt.getChart().repaint();
             }
         });
@@ -208,6 +245,7 @@ public final class MainWindow extends JFrame {
                 }
             }
         });
+        Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK), "copyRows", this::copySelection);
         Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_SPACE, 0), "toggle", () -> selectedRow().ifPresent(this::toggle));
         Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_ADD, 0), "expand", () -> selectedRow().ifPresent(r -> setCollapsed(r, false)));
         Ui.bindKey(table, KeyStroke.getKeyStroke(KeyEvent.VK_PLUS, 0), "expand2", () -> selectedRow().ifPresent(r -> setCollapsed(r, false)));
@@ -274,6 +312,11 @@ public final class MainWindow extends JFrame {
 
         addWindowListener(new WindowAdapter() {
             @Override
+            public void windowActivated(WindowEvent e) {
+                checkFileChanged();
+            }
+
+            @Override
             public void windowClosing(WindowEvent e) {
                 saveWindowState();
             }
@@ -311,7 +354,9 @@ public final class MainWindow extends JFrame {
             dispose();
         }));
         file.addSeparator();
+        file.add(Ui.item(Str.t("Kopírovat vybrané řádky"), KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_DOWN_MASK), this::copySelection));
         file.add(Ui.item(Str.t("Exportovat zobrazené úkoly do CSV…"), KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_DOWN_MASK), exports::exportCsv));
+        file.add(Ui.item(Str.t("Exportovat do Excelu (XLSX)…"), null, exports::exportXlsx));
         file.add(Ui.item(Str.t("Uložit Ganttův diagram jako PNG…"), KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), exports::exportPng));
         file.add(Ui.item(Str.t("Uložit jako PDF…"), KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK), exports::exportPdf));
         file.add(Ui.item(Str.t("Tisk…"), KeyStroke.getKeyStroke(KeyEvent.VK_P, InputEvent.CTRL_DOWN_MASK), exports::printChart));
@@ -368,6 +413,42 @@ public final class MainWindow extends JFrame {
             }
         });
         view.add(savedFilters);
+        JMenu views = new JMenu(Str.t("Uložené pohledy"));
+        views.addMenuListener(new javax.swing.event.MenuListener() {
+            @Override
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                views.removeAll();
+                List<SavedView> list = SavedView.load(prefs);
+                if (list.isEmpty()) {
+                    JMenuItem none = new JMenuItem(Str.t("(žádné – uložte současné zobrazení níže)"));
+                    none.setEnabled(false);
+                    views.add(none);
+                }
+                for (SavedView v : list) {
+                    views.add(Ui.item(v.name(), null, () -> applyView(v)));
+                }
+                views.addSeparator();
+                views.add(Ui.item(Str.t("Uložit současný pohled…"), null, MainWindow.this::saveCurrentView));
+                JMenu delete = new JMenu(Str.t("Smazat pohled"));
+                delete.setEnabled(!list.isEmpty());
+                for (SavedView v : list) {
+                    delete.add(Ui.item(v.name(), null, () -> {
+                        SavedView.remove(prefs, v.name());
+                        status.setText(Str.t("Pohled smazán: ") + v.name());
+                    }));
+                }
+                views.add(delete);
+            }
+
+            @Override
+            public void menuDeselected(javax.swing.event.MenuEvent e) {
+            }
+
+            @Override
+            public void menuCanceled(javax.swing.event.MenuEvent e) {
+            }
+        });
+        view.add(views);
         view.add(Ui.item(Str.t("Sloupce tabulky…"), null, () -> showColumnChooser(0, Theme.HEADER)));
         view.add(Ui.item(Str.t("Zrušit řazení"), null, () -> {
             sortColumn = null;
@@ -427,6 +508,14 @@ public final class MainWindow extends JFrame {
         language.add(en);
         view.add(language);
         bar.add(view);
+
+        JMenu tools = new JMenu(Str.t("Nástroje"));
+        tools.setMnemonic('T');
+        tools.add(Ui.item(Str.t("Kontrola kvality plánu…"), null, this::showScheduleCheck));
+        tools.add(Ui.item(Str.t("Porovnat s jinou verzí…"), null, this::compareWithFile));
+        tools.addSeparator();
+        tools.add(Ui.item(Str.t("Exportovat do Excelu (XLSX)…"), null, exports::exportXlsx));
+        bar.add(tools);
 
         windowMenu.setMnemonic('O');
         windowMenu.addMenuListener(new javax.swing.event.MenuListener() {
@@ -656,22 +745,39 @@ public final class MainWindow extends JFrame {
 
     /** Uložené nastavení sloupců: "klíč:šířka,klíč:šířka,…" (v pořadí zobrazení). */
     private List<String[]> loadColumnSetting() {
-        List<String[]> out = new ArrayList<>();
-        String v = prefs.get("columns", "");
-        if (!v.isBlank()) {
-            for (String part : v.split(",")) {
-                int i = part.lastIndexOf(':');
-                if (i > 0) {
-                    out.add(new String[]{part.substring(0, i), part.substring(i + 1)});
-                }
-            }
-        }
+        List<String[]> out = parseColumnSetting(prefs.get("columns", ""));
         if (out.isEmpty()) {
             for (String k : Columns.DEFAULT_KEYS) {
                 out.add(new String[]{k, ""});
             }
         }
         return out;
+    }
+
+    /** Rozebere zapsané nastavení sloupců „klíč:šířka,…“. */
+    private static List<String[]> parseColumnSetting(String value) {
+        List<String[]> out = new ArrayList<>();
+        if (value != null && !value.isBlank()) {
+            for (String part : value.split(",")) {
+                int i = part.lastIndexOf(':');
+                if (i > 0) {
+                    out.add(new String[]{part.substring(0, i), part.substring(i + 1)});
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Aktuální sloupce jako řetězec „klíč:šířka,…“. */
+    private String columnSettingString() {
+        StringBuilder sb = new StringBuilder();
+        for (String[] kv : currentColumnSetting()) {
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(kv[0]).append(':').append(kv[1]);
+        }
+        return sb.toString();
     }
 
     /** Nastaví zobrazené sloupce (klíč + volitelná šířka); klíče neznámé v tomto projektu se přeskočí, ale zůstávají uložené. */
@@ -764,7 +870,18 @@ public final class MainWindow extends JFrame {
             }
             applyColumns(def);
         }));
-        menu.add(Ui.item(Str.t("Přizpůsobit šířky obsahu"), null, this::autoSizeColumns));
+        menu.add(Ui.item(Str.t("Přizpůsobit šířky obsahu"), null, () -> {
+            setAutoFitWidths(true);
+            autoSizeColumns();
+        }));
+        JCheckBoxMenuItem auto = new JCheckBoxMenuItem(Str.t("Přizpůsobovat šířky po otevření souboru"), autoFitWidths);
+        auto.addActionListener(e -> {
+            setAutoFitWidths(auto.isSelected());
+            if (auto.isSelected()) {
+                autoSizeColumns();
+            }
+        });
+        menu.add(auto);
         menu.show(table.getTableHeader(), x, y);
     }
 
@@ -775,6 +892,11 @@ public final class MainWindow extends JFrame {
             setting.add(new String[]{c.key, ""});
         }
         applyColumns(setting);
+    }
+
+    private void setAutoFitWidths(boolean on) {
+        autoFitWidths = on;
+        prefs.putBoolean("autoFitColumns", on);
     }
 
     private void autoSizeColumns() {
@@ -927,6 +1049,132 @@ public final class MainWindow extends JFrame {
         refresh();
     }
 
+    /** Sloupce v pořadí, v jakém jsou zobrazené (pro kopírování a export). */
+    private List<Columns.Column> viewColumns() {
+        List<Columns.Column> out = new ArrayList<>();
+        for (int v = 0; v < table.getColumnModel().getColumnCount(); v++) {
+            Columns.Column c = model.columnAt(table.convertColumnIndexToModel(v));
+            if (c != null) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /** Vybrané řádky; když není vybráno nic, všechny zobrazené. */
+    private List<TaskTree.Row> rowsToCopy() {
+        List<TaskTree.Row> rows = new ArrayList<>();
+        int[] sel = table.getSelectedRows();
+        if (sel.length == 0) {
+            rows.addAll(tree.visible());
+            return rows;
+        }
+        for (int i : sel) {
+            if (i >= 0 && i < tree.visible().size()) {
+                rows.add(tree.visible().get(i));
+            }
+        }
+        return rows;
+    }
+
+    /** Zkopíruje vybrané řádky do schránky (text oddělený tabulátory – vloží se rovnou do Excelu). */
+    void copySelection() {
+        String text = selectionAsText();
+        if (text.isEmpty()) {
+            return;
+        }
+        try {
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
+                    .setContents(new java.awt.datatransfer.StringSelection(text), null);
+            status.setText(rowsToCopy().size() + Str.t(" řádků zkopírováno do schránky."));
+        } catch (RuntimeException ex) {
+            status.setText(Str.t("Schránku se nepodařilo otevřít – zkuste to znovu."));
+        }
+    }
+
+    /** Vybrané řádky jako text oddělený tabulátory (hlavička + data). */
+    String selectionAsText() {
+        List<TaskTree.Row> rows = rowsToCopy();
+        if (rows.isEmpty()) {
+            return "";
+        }
+        List<Columns.Column> cols = viewColumns();
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < cols.size(); i++) {
+            sb.append(i > 0 ? "\t" : "").append(cols.get(i).title);
+        }
+        sb.append(System.lineSeparator());
+        for (TaskTree.Row row : rows) {
+            for (int i = 0; i < cols.size(); i++) {
+                Columns.Column c = cols.get(i);
+                String text = columns.text(c, row);
+                if (c == Columns.NAME) {
+                    text = "    ".repeat(Math.min(row.depth, 8)) + text;
+                }
+                sb.append(i > 0 ? "\t" : "").append(text.replace('\t', ' ').replace('\n', ' '));
+            }
+            sb.append(System.lineSeparator());
+        }
+        return sb.toString();
+    }
+
+    /** Text stavového řádku po načtení souboru. */
+    private String loadedStatus() {
+        return currentPath == null ? "" : "Načteno: " + currentPath.toAbsolutePath() + Str.t("   (pouze pro čtení – soubor se nemění)");
+    }
+
+    /** Při výběru více řádků ukáže ve stavovém řádku součty (souhrnné úkoly se nesčítají). */
+    private void updateSelectionStatus() {
+        int[] sel = table.getSelectedRows();
+        if (sel.length < 2) {
+            if (currentPath != null) {
+                status.setText(loadedStatus());
+            }
+            return;
+        }
+        org.mpxj.ProjectProperties props = project == null ? null : project.getProjectProperties();
+        double hours = 0;
+        double cost = 0;
+        int tasks = 0;
+        java.time.LocalDateTime from = null;
+        java.time.LocalDateTime to = null;
+        for (int i : sel) {
+            if (i < 0 || i >= tree.visible().size()) {
+                continue;
+            }
+            TaskTree.Row row = tree.visible().get(i);
+            Task t = row.task;
+            if (t.getStart() != null && (from == null || t.getStart().isBefore(from))) {
+                from = t.getStart();
+            }
+            if (t.getFinish() != null && (to == null || t.getFinish().isAfter(to))) {
+                to = t.getFinish();
+            }
+            if (row.isSummary()) {
+                continue;
+            }
+            tasks++;
+            if (t.getWork() != null && props != null) {
+                hours += t.getWork().convertUnits(org.mpxj.TimeUnit.HOURS, props).getDuration();
+            }
+            if (t.getCost() != null) {
+                cost += t.getCost().doubleValue();
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append(Str.t("Vybráno ")).append(sel.length).append(Str.t(" řádků")).append(" (").append(tasks).append(Str.t(" úkolů bez souhrnů)"));
+        if (hours > 0) {
+            sb.append(Str.t("  •  práce ")).append(Fmt.number(hours)).append(Str.t(" h"));
+        }
+        if (cost > 0) {
+            sb.append(Str.t("  •  náklady ")).append(Fmt.money(cost, props == null ? "" : Fmt.text(props.getCurrencySymbol())));
+        }
+        if (from != null && to != null) {
+            sb.append("  •  ").append(Fmt.date(from)).append(" – ").append(Fmt.date(to));
+        }
+        status.setText(sb.toString());
+    }
+
     private void onSearch() {
         if (suppressEvents) {
             return;
@@ -1071,6 +1319,207 @@ public final class MainWindow extends JFrame {
         }
     }
 
+    /** Vybere starší verzi téhož plánu a ukáže, co se od ní změnilo. */
+    void compareWithFile() {
+        if (project == null || currentPath == null) {
+            JOptionPane.showMessageDialog(this, Str.t("Nejprve otevřete projekt."), Str.t("Porovnání verzí"), JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        File f = FileDialogs.open(this, Str.t("Vyberte starší verzi harmonogramu"), prefs.get("lastDir", System.getProperty("user.home")), List.of(
+                new FileDialogs.Filter(Str.t("Soubory Microsoft Project (*.mpp, *.mpt, *.mpx, *.xml, *.mpd)"), ProjectLoader.EXTENSIONS),
+                new FileDialogs.Filter("Project (*.mpp, *.mpt)", "mpp", "mpt"),
+                new FileDialogs.Filter("Project XML (*.xml)", "xml"),
+                new FileDialogs.Filter("Project Exchange (*.mpx)", "mpx"),
+                new FileDialogs.Filter("Project Database (*.mpd)", "mpd")));
+        if (f == null) {
+            return;
+        }
+        if (f.getParent() != null) {
+            prefs.put("lastDir", f.getParent());
+        }
+        Path older = f.toPath();
+        if (older.equals(currentPath)) {
+            JOptionPane.showMessageDialog(this, Str.t("Vybrali jste tentýž soubor, který je otevřený."), Str.t("Porovnání verzí"), JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        status.setText(Str.t("Porovnávám s ") + older.getFileName() + "…");
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+        new SwingWorker<List<ScheduleDiff.Row>, Void>() {
+            @Override
+            protected List<ScheduleDiff.Row> doInBackground() throws Exception {
+                ProjectFile old = ProjectLoader.load(older, null);
+                return ScheduleDiff.compare(old, project);
+            }
+
+            @Override
+            protected void done() {
+                setCursor(Cursor.getDefaultCursor());
+                try {
+                    List<ScheduleDiff.Row> rows = get();
+                    new CompareDialog(MainWindow.this, older, rows).setVisible(true);
+                    status.setText(Str.t("Porovnání s ") + older.getFileName() + ": " + ScheduleDiff.summary(rows));
+                } catch (java.util.concurrent.ExecutionException ex) {
+                    showError(Str.t("Starší verzi se nepodařilo načíst."), ex.getCause());
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }.execute();
+    }
+
+    // ---------------------------------------------------------------- nástroje
+
+    /** Rozbor kvality plánu (chybějící vazby, tvrdá omezení, rezervy, prodlevy…). */
+    void showScheduleCheck() {
+        if (project == null) {
+            JOptionPane.showMessageDialog(this, Str.t("Nejprve otevřete projekt."), Str.t("Kontrola kvality plánu"), JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        List<ScheduleCheck.Finding> findings = ScheduleCheck.run(project);
+        if (findings.isEmpty()) {
+            JOptionPane.showMessageDialog(this, Str.t("Projekt neobsahuje žádné úkoly ke kontrole."), Str.t("Kontrola kvality plánu"), JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        new ScheduleCheckDialog(this, findings).setVisible(true);
+    }
+
+    /** Vybere v tabulce zadané úkoly; kvůli viditelnosti zruší hledání i rychlý filtr a rozbalí osnovu. */
+    void selectTasks(List<Task> tasks) {
+        if (tasks == null || tasks.isEmpty()) {
+            return;
+        }
+        suppressEvents = true;
+        try {
+            search.setText("");
+            tree.setQuery("");
+            filterBox.setSelectedItem(TaskTree.Filter.ALL);
+            tree.setFilter(TaskTree.Filter.ALL);
+        } finally {
+            suppressEvents = false;
+        }
+        tree.expandAll();
+        refresh();
+        java.util.Set<Task> wanted = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        wanted.addAll(tasks);
+        table.clearSelection();
+        int first = -1;
+        int found = 0;
+        List<TaskTree.Row> visible = tree.visible();
+        for (int i = 0; i < visible.size(); i++) {
+            if (wanted.contains(visible.get(i).task)) {
+                table.addRowSelectionInterval(i, i);
+                found++;
+                if (first < 0) {
+                    first = i;
+                }
+            }
+        }
+        if (first >= 0) {
+            tabs.setSelectedIndex(0);
+            table.scrollRectToVisible(table.getCellRect(first, 0, true));
+            gantt.scrollToRow(first);
+        }
+        if (found < tasks.size()) {
+            status.setText(Str.t("Vybráno ") + found + Str.t(" z ") + tasks.size()
+                    + Str.t(" úkolů – ostatní skrývá rozšířený filtr."));
+        }
+    }
+
+    // ---------------------------------------------------------------- uložené pohledy
+
+    /** Zeptá se na název a uloží současné sloupce, filtr, úroveň osnovy a měřítko. */
+    void saveCurrentView() {
+        String suggestion = Str.t("Pohled ") + (SavedView.load(prefs).size() + 1);
+        String name = JOptionPane.showInputDialog(this, Str.t("Název pohledu (sloupce, filtr, úroveň osnovy a měřítko):"),
+                suggestion);
+        if (name == null || name.isBlank()) {
+            return;
+        }
+        GanttPanel.Zoom zoom = zoomBox.getSelectedIndex() < 0 ? null : (GanttPanel.Zoom) zoomBox.getSelectedItem();
+        SavedView v = new SavedView(name.trim(), columnSettingString(),
+                filterBox.getSelectedItem() == null ? TaskTree.Filter.ALL.name() : ((TaskTree.Filter) filterBox.getSelectedItem()).name(),
+                extraFilter == null ? "" : extraFilter.serialize(),
+                Math.max(0, levelBox.getSelectedIndex()),
+                zoom == null ? "" : zoom.name());
+        SavedView.save(prefs, v);
+        status.setText(Str.t("Pohled uložen: ") + v.name());
+    }
+
+    /** Nastaví zobrazení podle uloženého pohledu. */
+    void applyView(SavedView v) {
+        suppressEvents = true;
+        try {
+            List<String[]> cols = parseColumnSetting(v.columns());
+            if (!cols.isEmpty()) {
+                applyColumns(cols);
+                setAutoFitWidths(false);
+            }
+            try {
+                TaskTree.Filter f = TaskTree.Filter.valueOf(v.filter());
+                filterBox.setSelectedItem(f);
+                tree.setFilter(f);
+            } catch (IllegalArgumentException ignored) {
+                // pohled z novější verze s neznámým filtrem – zůstane stávající
+            }
+            TaskFilter extra = v.extra().isBlank() ? null : TaskFilter.deserialize(v.extra());
+            extraFilter = extra == null || extra.isEmpty() ? null : extra;
+            tree.setExtra(extraFilter == null ? null : extraFilter.predicate(columns));
+            extraFilterButton.setText(extraFilter == null ? Str.t("Filtr…") : Str.t("Filtr ●"));
+            extraFilterButton.setForeground(extraFilter == null ? Theme.INK : Theme.HIGHLIGHT);
+            if (v.level() >= 0 && v.level() < levelBox.getItemCount()) {
+                levelBox.setSelectedIndex(v.level());
+                tree.setMaxDepth(v.level());
+            }
+            if (!v.zoom().isBlank()) {
+                try {
+                    GanttPanel.Zoom z = GanttPanel.Zoom.valueOf(v.zoom());
+                    zoomBox.setSelectedItem(z);
+                    gantt.setZoom(z);
+                } catch (IllegalArgumentException ignored) {
+                    // neznámé měřítko – zůstane stávající
+                }
+            }
+        } finally {
+            suppressEvents = false;
+        }
+        refresh();
+        updateStats();
+        status.setText(Str.t("Pohled: ") + v.name());
+    }
+
+    /** Čas poslední změny otevřeného souboru (0 = neznámý). */
+    private long fileStamp(Path path) {
+        try {
+            return path == null ? 0 : Files.getLastModifiedTime(path).toMillis();
+        } catch (java.io.IOException | RuntimeException ex) {
+            return 0;
+        }
+    }
+
+    /**
+     * Po návratu do okna zjistí, jestli někdo soubor mezitím přepsal (typicky plán
+     * na síťovém disku), a nabídne znovunačtení. Ptá se jen jednou na každou změnu.
+     */
+    void checkFileChanged() {
+        if (loading || currentPath == null || loadedStamp == 0) {
+            return;
+        }
+        long now = fileStamp(currentPath);
+        if (now == 0 || now == loadedStamp) {
+            return;
+        }
+        loadedStamp = now;
+        int answer = JOptionPane.showConfirmDialog(this,
+                Str.t("Soubor se od otevření změnil:") + "\n" + currentPath.getFileName() + "\n\n"
+                        + Str.t("Načíst znovu? Neuložené nastavení zobrazení (filtr, sbalení) zůstane."),
+                Str.t("Soubor se změnil"), JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (answer == JOptionPane.YES_OPTION) {
+            reload();
+        } else {
+            status.setText(Str.t("Soubor na disku se změnil – zobrazení zůstává podle dřívějšího načtení (F5 načte znovu)."));
+        }
+    }
+
     public void open(Path path) {
         load(path, null);
     }
@@ -1162,6 +1611,9 @@ public final class MainWindow extends JFrame {
         columns.setProject(file);
         table.clearSelection();
         applyColumns(currentColumnSetting());
+        if (autoFitWidths) {
+            autoSizeColumns();
+        }
         updateBaselineChoices();
         gantt.setProject(file);
         details.setProject(file);
@@ -1179,7 +1631,8 @@ public final class MainWindow extends JFrame {
         updateRecentMenu();
         updateStats();
         ((java.awt.CardLayout) center.getLayout()).show(center, "main");
-        status.setText("Načteno: " + path.toAbsolutePath() + Str.t("   (pouze pro čtení – soubor se nemění)"));
+        loadedStamp = fileStamp(path);
+        status.setText(loadedStatus());
         if (tree.size() == 0) {
             status.setText("Soubor byl načten, ale neobsahuje žádné úkoly: " + path.getFileName());
         }
@@ -1329,14 +1782,7 @@ public final class MainWindow extends JFrame {
             prefs.putInt("winY", getY());
         }
         prefs.putInt("divider", mainSplit.getDividerLocation());
-        StringBuilder sb = new StringBuilder();
-        for (String[] kv : currentColumnSetting()) {
-            if (sb.length() > 0) {
-                sb.append(',');
-            }
-            sb.append(kv[0]).append(':').append(kv[1]);
-        }
-        prefs.put("columns", sb.toString());
+        prefs.put("columns", columnSettingString());
         try {
             prefs.flush();
         } catch (java.util.prefs.BackingStoreException | RuntimeException ignored) {

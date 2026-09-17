@@ -1,10 +1,10 @@
 ﻿; Instalátor M3K Project View (Inno Setup 6).
 ; Vstup: dist\M3K Project View\ (výstup jpackage app-image z build.ps1 -Package).
 ; Výstup: dist\M3K-Project-View-<verze>-Setup.exe
-; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.2.1 installer\setup.iss)
+; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.3.0 installer\setup.iss)
 
 #ifndef AppVersion
-  #define AppVersion "0.2.1"
+  #define AppVersion "0.3.0"
 #endif
 #define AppName "M3K Project View"
 #define AppExeName "M3K Project View.exe"

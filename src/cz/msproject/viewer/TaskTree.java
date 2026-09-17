@@ -25,6 +25,8 @@ public final class TaskTree {
         IN_PROGRESS(Str.t("Rozpracované")),
         COMPLETED(Str.t("Dokončené")),
         LATE(Str.t("Zpožděné (po termínu)")),
+        THIS_WEEK(Str.t("Probíhá tento týden")),
+        NEXT_3_WEEKS(Str.t("Nejbližší tři týdny")),
         SUMMARY(Str.t("Jen souhrnné úkoly")),
         WITH_RESOURCES(Str.t("S přiřazenými zdroji")),
         INACTIVE(Str.t("Neaktivní"));
@@ -347,11 +349,26 @@ public final class TaskTree {
                 LocalDateTime f = t.getFinish();
                 return pct < 100 && f != null && f.toLocalDate().isBefore(today) && !r.isSummary();
             }
+            case THIS_WEEK: {
+                LocalDate monday = today.with(java.time.DayOfWeek.MONDAY);
+                return !r.isSummary() && overlaps(t, monday, monday.plusDays(6));
+            }
+            case NEXT_3_WEEKS: return !r.isSummary() && overlaps(t, today, today.plusDays(21));
             case SUMMARY: return r.isSummary();
             case WITH_RESOURCES: return !Fmt.resources(t).isEmpty();
             case INACTIVE: return !t.getActive();
             default: return true;
         }
+    }
+
+    /** Zasahuje úkol do zadaného období? */
+    private static boolean overlaps(Task t, LocalDate from, LocalDate to) {
+        LocalDateTime s = t.getStart();
+        LocalDateTime f = t.getFinish();
+        if (s == null || f == null) {
+            return false;
+        }
+        return !s.toLocalDate().isAfter(to) && !f.toLocalDate().isBefore(from);
     }
 
     public void rebuild() {

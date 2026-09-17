@@ -620,6 +620,111 @@ public final class SelfTest {
                 } finally {
                     Files.deleteIfExists(pdf);
                 }
+                // export do Excelu: zapsat sešit a ověřit, že má všechny díly a platné XML
+                Path xlsx = out.resolveSibling(stripExt(out.getFileName().toString()) + ".xlsx");
+                int xlsxRows = w.exports.writeXlsx(xlsx);
+                check(xlsxRows == w.tree.visible().size(), "XLSX nezapsal všechny řádky úkolů");
+                java.util.Set<String> parts = new java.util.HashSet<>();
+                String sheet1 = "";
+                try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(xlsx.toFile())) {
+                    for (java.util.Enumeration<? extends java.util.zip.ZipEntry> en = zf.entries(); en.hasMoreElements(); ) {
+                        java.util.zip.ZipEntry ze = en.nextElement();
+                        parts.add(ze.getName());
+                        byte[] data = zf.getInputStream(ze).readAllBytes();
+                        if (ze.getName().endsWith(".xml") || ze.getName().endsWith(".rels")) {
+                            javax.xml.parsers.DocumentBuilderFactory dbf = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+                            dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                            dbf.setNamespaceAware(true);
+                            dbf.newDocumentBuilder().parse(new java.io.ByteArrayInputStream(data));
+                        }
+                        if (ze.getName().equals("xl/worksheets/sheet1.xml")) {
+                            sheet1 = new String(data, StandardCharsets.UTF_8);
+                        }
+                    }
+                }
+                check(parts.contains("[Content_Types].xml") && parts.contains("xl/workbook.xml")
+                        && parts.contains("xl/styles.xml") && parts.contains("xl/worksheets/sheet5.xml"),
+                        "XLSX nemá všechny díly: " + parts);
+                check(sheet1.contains("<sheetData>") && sheet1.contains("inlineStr") && sheet1.contains("autoFilter"),
+                        "List Úkoly nemá očekávaný obsah");
+                check(XlsxWriter.colName(1).equals("A") && XlsxWriter.colName(26).equals("Z")
+                        && XlsxWriter.colName(27).equals("AA") && XlsxWriter.colName(28).equals("AB"), "Špatné označení sloupce");
+
+                // kopírování vybraných řádků do schránky (text, ne obsah schránky)
+                w.table.setRowSelectionInterval(0, Math.min(2, w.tree.visible().size() - 1));
+                String copied = w.selectionAsText();
+                String[] copiedLines = copied.split("\\R");
+                check(copiedLines.length == Math.min(3, w.tree.visible().size()) + 1, "Kopírování nevrátilo hlavičku a vybrané řádky: " + copiedLines.length);
+                check(copiedLines[0].contains("\t") && copiedLines[1].contains("\t"), "Kopírovaný text není oddělený tabulátory");
+                w.table.clearSelection();
+                w.table.setRowSelectionInterval(0, 0);
+
+                // automatické šířky sloupců: název musí být širší než výchozí úzká šířka
+                int nameCol = w.table.convertColumnIndexToView(w.model.indexOf(Columns.NAME));
+                check(w.table.getColumnModel().getColumn(nameCol).getPreferredWidth() >= 80,
+                        "Sloupec Název se po otevření nepřizpůsobil obsahu");
+
+                // filtry podle data
+                for (TaskTree.Filter f : new TaskTree.Filter[]{TaskTree.Filter.THIS_WEEK, TaskTree.Filter.NEXT_3_WEEKS}) {
+                    w.filterBox.setSelectedItem(f);
+                    check(w.tree.visible().size() <= total, "Filtr " + f + " zobrazil víc řádků než bez filtru");
+                }
+                w.filterBox.setSelectedItem(TaskTree.Filter.ALL);
+                check(w.tree.visible().size() == total, "Zrušení filtru podle data nevrátilo seznam");
+
+                // kontrola kvality plánu
+                java.util.List<ScheduleCheck.Finding> findings = ScheduleCheck.run(project);
+                check(findings.size() >= 10, "Kontrola kvality vrátila málo pravidel: " + findings.size());
+                for (ScheduleCheck.Finding f : findings) {
+                    check(f.count() >= 0 && f.count() <= f.total(), "Nález " + f.rule() + " má nesmyslný počet");
+                    check(f.count() == f.tasks().size(), "Nález " + f.rule() + " nesedí se seznamem úkolů");
+                    check(f.count() == 0 ? f.level() == ScheduleCheck.Level.OK : f.level() != ScheduleCheck.Level.OK,
+                            "Nález " + f.rule() + " má špatnou závažnost");
+                }
+                check(!ScheduleCheck.summary(findings).isBlank(), "Shrnutí kontroly je prázdné");
+
+                // porovnání verzí: se sebou samým nesmí najít změnu, po posunu termínů ano
+                ProjectFile copy = ProjectLoader.load(file, null);
+                java.util.List<ScheduleDiff.Row> same = ScheduleDiff.compare(copy, project);
+                for (ScheduleDiff.Row r : same) {
+                    check(r.kind() == ScheduleDiff.Kind.SAME, "Porovnání téhož souboru hlásí změnu: " + r.name() + " " + r.changesText());
+                }
+                org.mpxj.Task moved = null;
+                for (org.mpxj.Task t : copy.getTasks()) {
+                    if (t != null && t.getName() != null && t.getStart() != null && t.getFinish() != null && !t.getSummary()) {
+                        moved = t;
+                        break;
+                    }
+                }
+                if (moved != null) {
+                    moved.setStart(moved.getStart().minusDays(7));
+                    moved.setFinish(moved.getFinish().minusDays(7));
+                    java.util.List<ScheduleDiff.Row> diff = ScheduleDiff.compare(copy, project);
+                    int changed = 0;
+                    for (ScheduleDiff.Row r : diff) {
+                        if (r.kind() == ScheduleDiff.Kind.CHANGED) {
+                            changed++;
+                            check(r.startShift() == 7 && r.finishShift() == 7, "Porovnání spočítalo špatný posun: " + r.startShift());
+                        }
+                    }
+                    check(changed == 1, "Porovnání nenašlo právě jednu změnu: " + changed);
+                }
+
+                // uložený pohled: uložit, načíst zpět a použít
+                SavedView view = new SavedView("test-pohled", "id:60,name:300", TaskTree.Filter.MILESTONES.name(), "", 0, GanttPanel.Zoom.MONTHS.name());
+                SavedView back = SavedView.deserialize(view.serialize());
+                check(back != null && back.name().equals("test-pohled") && back.filter().equals("MILESTONES")
+                        && back.zoom().equals("MONTHS"), "Uložený pohled se nenačetl zpět");
+                w.applyView(back);
+                check(w.tree.getFilter() == TaskTree.Filter.MILESTONES, "Pohled nenastavil filtr");
+                w.filterBox.setSelectedItem(TaskTree.Filter.ALL);
+                java.util.List<String[]> defaultColumns = new java.util.ArrayList<>();
+                for (String k : Columns.DEFAULT_KEYS) {
+                    defaultColumns.add(new String[]{k, ""});
+                }
+                w.applyColumns(defaultColumns);
+                check(w.tree.visible().size() == total, "Návrat k výchozímu pohledu nevrátil seznam");
+
                 BufferedImage window = new BufferedImage(w.getWidth(), w.getHeight(), BufferedImage.TYPE_INT_RGB);
                 java.awt.Graphics2D g = window.createGraphics();
                 w.getRootPane().printAll(g);

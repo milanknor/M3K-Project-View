@@ -88,6 +88,199 @@ final class Exports {
         }
     }
 
+    // ---------------------------------------------------------------- Excel (XLSX)
+
+    void exportXlsx() {
+        if (!requireProject(Str.t("Export do Excelu"))) {
+            return;
+        }
+        File f = FileDialogs.save(w, Str.t("Exportovat do Excelu"), exportDir(), baseName() + ".xlsx",
+                new FileDialogs.Filter("Excel (*.xlsx)", "xlsx"));
+        if (f == null) {
+            return;
+        }
+        try {
+            int rows = writeXlsx(f.toPath());
+            rememberDir(f);
+            w.status.setText(Str.t("Sešit uložen do ") + f.getAbsolutePath() + " (" + rows + Str.t(" řádků úkolů)"));
+        } catch (Exception | OutOfMemoryError ex) {
+            w.showError(Str.t("Export do Excelu se nezdařil."), ex);
+        }
+    }
+
+    /** Zapíše sešit s listy Úkoly, Zdroje, Přiřazení, Vytížení a Projekt; vrací počet řádků úkolů. */
+    int writeXlsx(Path target) throws IOException {
+        org.mpxj.ProjectProperties props = w.project.getProjectProperties();
+        String currency = Fmt.text(props.getCurrencySymbol());
+        try (XlsxWriter x = new XlsxWriter(target, currency)) {
+            List<Columns.Column> cols = new ArrayList<>();
+            for (int i = 0; i < w.table.getColumnModel().getColumnCount(); i++) {
+                Columns.Column c = w.model.columnAt(w.table.getColumnModel().getColumn(i).getModelIndex());
+                if (c != null) {
+                    cols.add(c);
+                }
+            }
+            int[] widths = new int[cols.size()];
+            String[] titles = new String[cols.size()];
+            for (int i = 0; i < cols.size(); i++) {
+                widths[i] = Math.max(8, cols.get(i).width / 7);
+                titles[i] = cols.get(i).title;
+            }
+            x.sheet(Str.t("Úkoly"), widths);
+            x.header(titles);
+            for (TaskTree.Row row : w.tree.visible()) {
+                x.row();
+                for (Columns.Column c : cols) {
+                    writeCell(x, c, row);
+                }
+            }
+            writeResources(x, currency);
+            writeAssignments(x);
+            writeUsage(x);
+            writeProject(x, props);
+            return w.tree.visible().size();
+        }
+    }
+
+    /** Buňka podle typu hodnoty: datum a čísla jdou do Excelu jako čísla, zbytek jako text. */
+    private void writeCell(XlsxWriter x, Columns.Column c, TaskTree.Row row) throws IOException {
+        Object key = w.columns.sortKey(c, row);
+        String text = w.columns.text(c, row);
+        if (text.isEmpty()) {
+            x.blank();
+            return;
+        }
+        if (key instanceof java.time.LocalDateTime d) {
+            x.date(d);
+            return;
+        }
+        if (key instanceof Number n && !(key instanceof Boolean)) {
+            String k = c.key.toLowerCase(java.util.Locale.ROOT);
+            XlsxWriter.Style style = k.contains("cost") ? XlsxWriter.Style.MONEY
+                    : k.startsWith("percent") ? XlsxWriter.Style.PERCENT : XlsxWriter.Style.NUMBER;
+            x.number(n.doubleValue(), style);
+            return;
+        }
+        if (c == Columns.NAME) {
+            x.text("    ".repeat(Math.min(row.depth, 8)) + text, row.isSummary() ? XlsxWriter.Style.BOLD : XlsxWriter.Style.TEXT);
+            return;
+        }
+        x.text(text);
+    }
+
+    private void writeResources(XlsxWriter x, String currency) throws IOException {
+        x.sheet(Str.t("Zdroje"), new int[]{8, 34, 14, 12, 14, 12, 14, 12});
+        x.header(Str.t("ID"), Str.t("Název"), Str.t("Typ"), Str.t("Max. jednotky %"), Str.t("Standardní sazba"),
+                Str.t("Práce (h)"), Str.t("Náklady") + (currency.isBlank() ? "" : " (" + currency + ")"), Str.t("Přetížený"));
+        for (org.mpxj.Resource r : w.project.getResources()) {
+            if (r.getName() == null || r.getName().isBlank()) {
+                continue;
+            }
+            x.row();
+            x.number(r.getID() == null ? 0 : r.getID().doubleValue(), XlsxWriter.Style.NUMBER);
+            x.text(Fmt.text(r.getName()));
+            x.text(Labels.resourceType(r.getType()));
+            x.number(r.getMaxUnits() == null ? 0 : r.getMaxUnits().doubleValue(), XlsxWriter.Style.NUMBER);
+            x.number(r.getStandardRate() == null ? 0 : r.getStandardRate().getAmount(), XlsxWriter.Style.MONEY);
+            x.number(hours(r.getWork()), XlsxWriter.Style.NUMBER);
+            x.number(r.getCost() == null ? 0 : r.getCost().doubleValue(), XlsxWriter.Style.MONEY);
+            x.text(r.getOverAllocated() ? Str.t("ano") : Str.t("ne"));
+        }
+    }
+
+    private void writeAssignments(XlsxWriter x) throws IOException {
+        x.sheet(Str.t("Přiřazení"), new int[]{8, 40, 24, 12, 12, 14, 14, 14});
+        x.header(Str.t("ID úkolu"), Str.t("Úkol"), Str.t("Zdroj"), Str.t("Jednotky %"), Str.t("Práce (h)"),
+                Str.t("Náklady"), Str.t("Zahájení"), Str.t("Dokončení"));
+        for (org.mpxj.Task t : w.project.getTasks()) {
+            for (org.mpxj.ResourceAssignment a : t.getResourceAssignments()) {
+                if (a.getResource() == null) {
+                    continue;
+                }
+                x.row();
+                x.number(t.getID() == null ? 0 : t.getID().doubleValue(), XlsxWriter.Style.NUMBER);
+                x.text(Fmt.text(t.getName()));
+                x.text(Fmt.text(a.getResource().getName()));
+                x.number(a.getUnits() == null ? 0 : a.getUnits().doubleValue(), XlsxWriter.Style.NUMBER);
+                x.number(hours(a.getWork()), XlsxWriter.Style.NUMBER);
+                x.number(a.getCost() == null ? 0 : a.getCost().doubleValue(), XlsxWriter.Style.MONEY);
+                x.date(a.getStart());
+                x.date(a.getFinish());
+            }
+        }
+    }
+
+    private void writeUsage(XlsxWriter x) throws IOException {
+        ResourceUsagePanel.Usage u = ResourceUsagePanel.compute(w.project, ResourceUsagePanel.Period.WEEKS);
+        int[] widths = new int[u.headers.length + 3];
+        widths[0] = 30;
+        widths[1] = 18;
+        widths[2] = 12;
+        for (int i = 3; i < widths.length; i++) {
+            widths[i] = 10;
+        }
+        x.sheet(Str.t("Vytížení (týdny)"), widths);
+        x.row();
+        x.text(Str.t("Zdroj"), XlsxWriter.Style.HEADER);
+        x.text(Str.t("Detail"), XlsxWriter.Style.HEADER);
+        x.text(Str.t("Celkem h"), XlsxWriter.Style.HEADER);
+        for (String h : u.headers) {
+            x.text(h, XlsxWriter.Style.HEADER);
+        }
+        for (int r = 0; r < u.names.size(); r++) {
+            x.row();
+            x.text(u.names.get(r));
+            x.text(u.detail.get(r));
+            double[] work = u.work.get(r);
+            double total = 0;
+            for (double v : work) {
+                total += v;
+            }
+            x.number(total, XlsxWriter.Style.NUMBER);
+            for (double v : work) {
+                if (v == 0) {
+                    x.blank();
+                } else {
+                    x.number(v, XlsxWriter.Style.NUMBER);
+                }
+            }
+        }
+    }
+
+    private void writeProject(XlsxWriter x, org.mpxj.ProjectProperties props) throws IOException {
+        x.sheet(Str.t("Projekt"), new int[]{28, 46});
+        x.header(Str.t("Údaj"), Str.t("Hodnota"));
+        pair(x, Str.t("Soubor"), w.currentPath.toAbsolutePath().toString());
+        pair(x, Str.t("Název projektu"), Fmt.text(props.getProjectTitle()));
+        pair(x, Str.t("Společnost"), Fmt.text(props.getCompany()));
+        pair(x, Str.t("Vedoucí"), Fmt.text(props.getManager()));
+        pair(x, Str.t("Zahájení"), Fmt.date(props.getStartDate()));
+        pair(x, Str.t("Dokončení"), Fmt.date(props.getFinishDate()));
+        pair(x, Str.t("Datum stavu"), Fmt.date(props.getStatusDate()));
+        pair(x, Str.t("Úkolů celkem"), String.valueOf(w.tree.size()));
+        pair(x, Str.t("Zobrazeno řádků"), String.valueOf(w.tree.visible().size()));
+        pair(x, Str.t("Zdrojů"), String.valueOf(w.project.getResources().size()));
+        pair(x, Str.t("Exportováno"), Fmt.dateTime(java.time.LocalDateTime.now()) + "  ·  " + MainWindow.APP_NAME + " " + MainWindow.VERSION);
+    }
+
+    private static void pair(XlsxWriter x, String name, String value) throws IOException {
+        x.row();
+        x.text(name, XlsxWriter.Style.BOLD);
+        x.text(value);
+    }
+
+    /** Práce v hodinách (převod podle nastavení projektu). */
+    private double hours(org.mpxj.Duration d) {
+        if (d == null) {
+            return 0;
+        }
+        try {
+            return d.convertUnits(org.mpxj.TimeUnit.HOURS, w.project.getProjectProperties()).getDuration();
+        } catch (RuntimeException ex) {
+            return d.getDuration();
+        }
+    }
+
     void exportPng() {
         if (!requireProject(Str.t("Uložit PNG"))) {
             return;

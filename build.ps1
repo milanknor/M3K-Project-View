@@ -53,7 +53,7 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $root = $PSScriptRoot
 Set-Location $root
-$version = "0.2.1"
+$version = "0.3.0"
 $appName = "M3K Project View"
 # stálý UpgradeCode MSI – nikdy neměnit, jinak se nová verze nenainstaluje přes starou
 $msiUpgradeUuid = "9F2B1C57-4E3A-4D8B-9A61-7C0D8B2F4A73"
