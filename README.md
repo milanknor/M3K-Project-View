@@ -152,6 +152,10 @@ vypisuje `licenses\THIRD-PARTY.txt` v hotovém balíčku).
 .\build.ps1 -SkipTests -Run -File "C:\cesta\projekt.mpp"
 ```
 
+Obsah `dist\web\` se na m3ksound.cz kopíruje včetně `projectview.html.gz`: nginx má
+zapnuté `gzip_static`, takže prohlížečům posílá předkomprimovaný soubor a bez jeho
+obnovy by se nová verze stránky neprojevila.
+
 Cesta k JDK: proměnná `MSPV_JDK`, jinak `JAVA_HOME`, jinak výchozí cesta ve skriptu.
 
 Testy: `App --test soubor.mpp …` (načtení, hierarchie, filtry, formátování,

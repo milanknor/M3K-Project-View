@@ -28,6 +28,12 @@ public final class Shots {
                 w.gantt.setZoom(GanttPanel.Zoom.FIT);
                 w.baselineBox.setSelected(true);
                 w.gantt.setShowBaseline(true);
+                // stejné jako v programu „Přizpůsobit šířky obsahu“ – jinak jsou
+                // názvy úkolů na snímku oříznuté na několik znaků
+                w.mainSplit.setDividerLocation(820);
+                java.lang.reflect.Method fit = MainWindow.class.getDeclaredMethod("autoSizeColumns");
+                fit.setAccessible(true);
+                fit.invoke(w);
                 int row = Math.min(9, w.tree.visible().size() - 1);
                 w.table.setRowSelectionInterval(row, row);
                 w.table.scrollRectToVisible(w.table.getCellRect(0, 0, true));
@@ -43,6 +49,11 @@ public final class Shots {
                 w.tabs.setSelectedIndex(3);   // Vytížení
                 w.usage.setPeriod(ResourceUsagePanel.Period.WEEKS);
                 w.usage.waitForCompute();
+                // zdroj s více úkoly, aby spodní panel nebyl skoro prázdný
+                int res = Math.min(1, w.usage.table().getRowCount() - 1);
+                if (res >= 0) {
+                    w.usage.table().setRowSelectionInterval(res, res);
+                }
                 w.validate();
                 shot(w, outDir + "/usage.png");
 

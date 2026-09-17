@@ -21,7 +21,9 @@
   -Web       (zahrnuje -Installer -Msi) připraví do dist\web\ stránku ke stažení
              (šablona web\projectview.html s doplněnou verzí, velikostmi a otisky),
              snímky obrazovky a všechny instalační soubory. Obsah stačí zkopírovat
-             na web (m3ksound.cz).
+             na web (m3ksound.cz) – včetně projectview.html.gz, který nginx
+             servíruje přednostně (gzip_static), takže bez něj by byla vidět
+             stará verze stránky.
   -SkipTests přeskočí testy.
   -Run       po sestavení spustí aplikaci (volitelně s cestou k souboru v -File).
 
@@ -390,9 +392,23 @@ if ($Web) {
 
     $html = [IO.File]::ReadAllText($template, [Text.UTF8Encoding]::new($false))
     $html = $html.Replace("{{VERSION}}", $version).Replace("{{DATE}}", (Get-Date -Format "d. M. yyyy"))
+    # razítko u obrázků: prohlížeč si jinak nechá staré snímky (server neposílá Cache-Control)
+    $newestAsset = Get-ChildItem "$root\web\assets" -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $html = $html.Replace("{{ASSETS}}", $newestAsset.LastWriteTime.ToString("yyyyMMddHHmm"))
     foreach ($k in $files.Keys) { $html = $html.Replace("{{$k}}", $files[$k]) }
     if ($html -match "\{\{[A-Z_]+\}\}") { throw "Ve stránce zůstal nenahrazený zástupný text: $($Matches[0])" }
     [IO.File]::WriteAllText("$webDir\projectview.html", $html, [Text.UTF8Encoding]::new($false))
+
+    # nginx na NASu má zapnuté gzip_static: pokud vedle HTML leží .gz, servíruje
+    # prohlížečům jeho obsah. Musí se proto přegenerovat spolu se stránkou, jinak
+    # návštěvníci uvidí starou verzi (plain HTML dostanou jen roboti bez gzipu).
+    $htmlBytes = [Text.UTF8Encoding]::new($false).GetBytes($html)
+    $gzFile = [IO.File]::Create("$webDir\projectview.html.gz")
+    $gzStream = [IO.Compression.GZipStream]::new($gzFile, [IO.Compression.CompressionLevel]::Optimal)
+    $gzStream.Write($htmlBytes, 0, $htmlBytes.Length)
+    $gzStream.Dispose()
+    $gzFile.Dispose()
+
     Write-Host ("Stránka ke stažení: {0} ({1:N0} MB celkem)" -f "$webDir\projectview.html",
         ((Get-ChildItem $webDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB))
 }
