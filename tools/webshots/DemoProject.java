@@ -17,6 +17,8 @@ public final class DemoProject {
     private static Resource elektro;
     private static Resource komunikace;
     private static Task previous;
+    /** Datum stavu – podle něj se odvozuje rozpracovanost a skutečné termíny. */
+    private static final LocalDate STATUS = LocalDate.of(2026, 7, 31);
     private static final java.util.Set<LocalDate> SVATKY = new java.util.HashSet<>();
 
     public static void main(String[] args) throws Exception {
@@ -212,7 +214,12 @@ public final class DemoProject {
         t.setFinish(dateTime(day));
         t.setDuration(Duration.getInstance(0, TimeUnit.DAYS));
         t.setCritical(true);
-        t.setPercentageComplete(Integer.valueOf(done ? 100 : 0));
+        boolean reached = !day.isAfter(STATUS);
+        t.setPercentageComplete(Integer.valueOf(reached ? 100 : 0));
+        if (reached) {
+            t.setActualStart(dateTime(day));
+            t.setActualFinish(dateTime(day));
+        }
     }
 
     /** Vloží úkol a vrátí datum, kdy má začít následující (řetězení konec–začátek). */
@@ -229,7 +236,22 @@ public final class DemoProject {
         t.setStart(dateTime(b));
         t.setFinish(e.atTime(16, 0));
         t.setDuration(Duration.getInstance(days, TimeUnit.DAYS));
+        // rozpracovanost musí sedět s datem stavu: co ještě nezačalo, nemůže být hotové
+        if (b.isAfter(STATUS)) {
+            percent = 0;
+        } else if (!e.isAfter(STATUS)) {
+            percent = 100;
+        } else if (percent == 0 || percent == 100) {
+            percent = 50;
+        }
         t.setPercentageComplete(Integer.valueOf(percent));
+        if (percent > 0) {
+            t.setActualStart(t.getStart());
+            if (percent >= 100) {
+                t.setActualFinish(t.getFinish());
+                t.setActualDuration(t.getDuration());
+            }
+        }
         t.setCritical(critical);
         t.setWork(Duration.getInstance(days * 8.0 * (res == stavbyvedouci ? 0.5 : 1.0), TimeUnit.HOURS));
         if (res != null) {

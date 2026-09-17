@@ -22,12 +22,17 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
   podnikových, s aliasy). Výběr pravým tlačítkem na hlavičku, přetahování pořadí,
   šířky; vše se pamatuje. **Řazení** kliknutím na hlavičku (vzestupně / sestupně /
   podle souboru) v rámci každé úrovně osnovy.
+- **Uložené pohledy**: sada sloupců, filtr, úroveň osnovy a měřítko pod názvem;
+  šířky sloupců se po otevření souboru samy přizpůsobí obsahu (dokud si je
+  uživatel nenastaví ručně). Výběr více řádků sčítá ve stavovém řádku práci,
+  náklady a rozsah termínů. Když soubor na disku někdo přepíše, program nabídne
+  znovunačtení.
 - **Osnova**: sbalování/rozbalování souhrnů (šipka, dvojklik, mezerník, +/−),
   rozbalení do zvolené úrovně, „Rozbalit vše“ / „Sbalit vše“; výchozí stav
   sbalení se přebírá ze souboru.
 - **Hledání a filtry**: název, ID, WBS, zdroje, poznámky; rychlé filtry (kritické,
-  milníky, nedokončené, rozpracované, dokončené, zpožděné, souhrnné, se zdroji,
-  neaktivní) a **rozšířený filtr** (zdroj, období, % dokončení, text ve zvoleném
+  milníky, nedokončené, rozpracované, dokončené, zpožděné, probíhající tento týden,
+  nejbližší tři týdny, souhrnné, se zdroji, neaktivní) a **rozšířený filtr** (zdroj, období, % dokončení, text ve zvoleném
   sloupci) s uloženými pojmenovanými filtry; nadřazené souhrny zůstávají vidět.
 - **Detail úkolu**: obecné údaje, vlastní pole, všechny základní plány, přiřazené
   zdroje, vazby (dvojklik přejde na úkol), poznámky, odkaz na vložený podprojekt
@@ -41,9 +46,20 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
   podle kalendáře zdroje a max. jednotek) červeně; rozpis vybraného zdroje po úkolech.
 - **Kalendáře**: pracovní týden, výjimky (svátky), měsíční mřížka s nepracovními dny.
 - **Projekt**: vlastnosti souboru a projektu, statistika, kalendáře, podprojekty.
+- **Nástroje**:
+  - **Kontrola kvality plánu** – 14 kontrol ve stylu DCMA: úkoly bez předchůdce
+    či následníka, tvrdá omezení, záporná i přehnaná rezerva, dlouhá trvání,
+    prodlevy a předstihy ve vazbách, jiné vazby než konec–začátek, zpoždění proti
+    datu stavu, skutečné termíny v budoucnosti, úkoly bez zdroje, milníky bez vazeb.
+    Z nálezu se dá skočit na dotčené úkoly, přehled jde do schránky nebo do CSV.
+  - **Porovnání dvou verzí** – vybere se starší soubor téhož plánu; úkoly se spárují
+    podle GUID, jedinečného ID, WBS a názvu a tabulka ukáže, co přibylo, zmizelo,
+    přejmenovalo se a o kolik dní se posunul začátek či konec (export do CSV).
 - **Tisk a export**: tisk (stránkování po řádcích, hlavička na každé stránce),
   uložení do **PDF** (A4/A3), CSV podle zobrazených sloupců (UTF‑8, středník –
-  rovnou do Excelu), Ganttův diagram a časová osa do PNG.
+  rovnou do Excelu), **XLSX** s listy Úkoly, Zdroje, Přiřazení, Vytížení a Projekt
+  (data jako čísla a data, ne text), Ctrl+C zkopíruje vybrané řádky do schránky,
+  Ganttův diagram a časová osa do PNG.
 - **Vzhled**: světlý / tmavý režim, velikost písma (i Ctrl+Shift++/−), čeština
   nebo angličtina (Zobrazit → Jazyk, projeví se po restartu).
 - Více souborů ve více oknech (Ctrl+N, nabídka Okno), úvodní obrazovka s nedávnými
@@ -62,6 +78,7 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
 | Přiblížit / oddálit / celý projekt | Ctrl++ / Ctrl+− / Ctrl+0, Ctrl+kolečko myši |
 | Přejít na dnešek / na vybraný úkol | Ctrl+T / Ctrl+G |
 | Rozšířený filtr | Ctrl+Shift+F |
+| Kopírovat vybrané řádky | Ctrl+C |
 | Export CSV / PNG / PDF / tisk | Ctrl+E / Ctrl+Shift+P / Ctrl+Shift+S / Ctrl+P |
 | Nové okno / otevřít v novém okně / zavřít okno | Ctrl+N / Ctrl+Shift+O / Ctrl+W |
 | Větší / menší písmo | Ctrl+Shift++ / Ctrl+Shift+− |

@@ -201,7 +201,7 @@
       <div class="strip-item"><svg viewBox="0 0 24 24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg><span>MPP, MPT, XML, MPX, MPD</span></div>
       <div class="strip-item"><svg viewBox="0 0 24 24" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h9M4 12h13M4 17h7"/></svg><span>Ganttův diagram s vazbami</span></div>
       <div class="strip-item"><svg viewBox="0 0 24 24" stroke-width="1.6" stroke-linecap="round"><path d="M4 19V9M9 19V5M14 19v-7M19 19v-3"/><path d="M3 21h18"/></svg><span>Vytížení a přetížení zdrojů</span></div>
-      <div class="strip-item"><svg viewBox="0 0 24 24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5"/><rect x="4" y="9" width="16" height="7" rx="2"/><path d="M7 16h10v4H7z"/></svg><span>Tisk, PDF, CSV i PNG</span></div>
+      <div class="strip-item"><svg viewBox="0 0 24 24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5"/><rect x="4" y="9" width="16" height="7" rx="2"/><path d="M7 16h10v4H7z"/></svg><span>Tisk, PDF, Excel i PNG</span></div>
     </div>
   </div>
 </section>
@@ -242,7 +242,17 @@
       <div class="feat reveal">
         <div class="feat-ico"><svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V4h12v5"/><rect x="4" y="9" width="16" height="7" rx="2"/><path d="M7 16h10v4H7z"/></svg></div>
         <h3>Tisk a export</h3>
-        <p>Tisk se stránkováním a opakovanou hlavičkou, PDF ve formátu A4 i A3, zobrazené úkoly do CSV pro Excel a diagram nebo časovou osu do PNG.</p>
+        <p>Tisk se stránkováním a opakovanou hlavičkou, PDF ve formátu A4 i A3, sešit XLSX s listy úkolů, zdrojů, přiřazení i vytížení, CSV a diagram nebo časová osa do PNG.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6.5V11c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6.5L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Kontrola kvality plánu</h3>
+        <p>Čtrnáct kontrol ve stylu DCMA: úkoly bez vazeb, tvrdá omezení, záporná i přehnaná rezerva, dlouhá trvání, prodlevy ve vazbách nebo zpoždění proti datu stavu. U každého nálezu vidíte dotčené úkoly a přehled uložíte do CSV.</p>
+      </div>
+      <div class="feat reveal">
+        <div class="feat-ico"><svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h7M4 12h5M4 17h7"/><path d="M15 5v14"/><path d="m18 8 3 3-3 3"/></svg></div>
+        <h3>Porovnání dvou verzí</h3>
+        <p>Otevřete novou revizi a vyberte tu starší. Program úkoly spáruje podle ID, WBS i názvu a ukáže, co přibylo, zmizelo, přejmenovalo se a o kolik dní se posunul začátek nebo konec.</p>
       </div>
     </div>
   </div>
@@ -252,8 +262,8 @@
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="sec-eyebrow">Náhledy</span>
-      <h2>Pět pohledů na jeden harmonogram</h2>
-      <p>Kromě Ganttova diagramu má program časovou osu pro prezentace, přehled zdrojů, jejich vytížení v čase a kalendáře projektu.</p>
+      <h2>Pět pohledů na jeden harmonogram a kontrola navíc</h2>
+      <p>Kromě Ganttova diagramu má program časovou osu pro prezentace, přehled zdrojů, jejich vytížení v čase, kalendáře projektu a rozbor kvality plánu.</p>
     </div>
     <div class="gal-grid">
       <figure class="shot reveal">
@@ -271,6 +281,10 @@
       <figure class="shot reveal">
         <img src="projectview-assets/gantt-dark.png?v={{ASSETS}}" width="1400" height="880" loading="lazy" alt="Ganttův diagram v tmavém režimu">
         <figcaption class="shot-cap">Tmavý režim — přepíná se v nabídce Zobrazit, stejně jako velikost písma a jazyk.</figcaption>
+      </figure>
+      <figure class="shot reveal" style="grid-column:1/-1">
+        <img src="projectview-assets/check.png?v={{ASSETS}}" width="1400" height="880" loading="lazy" alt="Dialog kontroly kvality plánu s přehledem nálezů">
+        <figcaption class="shot-cap">Kontrola kvality plánu: u každé kontroly je počet nálezů, podíl z úkolů a seznam dotčených úkolů — jedním tlačítkem se vyberou v tabulce.</figcaption>
       </figure>
     </div>
   </div>
@@ -291,6 +305,7 @@
       <div class="spec"><span class="k">Licence</span><span class="v">freeware — zdarma i pro firmy</span></div>
       <div class="spec"><span class="k">Vaše soubory</span><span class="v">program je pouze čte</span></div>
       <div class="spec"><span class="k">Internet</span><span class="v">program se nikam nepřipojuje</span></div>
+      <div class="spec"><span class="k">Novinky ve verzi {{VERSION}}</span><span class="v">kontrola kvality plánu, porovnání dvou verzí,<br>export do Excelu a kopírování řádků</span></div>
     </div>
   </div>
 </section>

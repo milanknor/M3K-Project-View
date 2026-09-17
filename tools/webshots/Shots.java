@@ -28,12 +28,9 @@ public final class Shots {
                 w.gantt.setZoom(GanttPanel.Zoom.FIT);
                 w.baselineBox.setSelected(true);
                 w.gantt.setShowBaseline(true);
-                // stejné jako v programu „Přizpůsobit šířky obsahu“ – jinak jsou
-                // názvy úkolů na snímku oříznuté na několik znaků
+                // šířky sloupců si program přizpůsobí sám (od verze 0.3.0),
+                // stačí posunout dělicí příčku, ať je na názvy vidět
                 w.mainSplit.setDividerLocation(820);
-                java.lang.reflect.Method fit = MainWindow.class.getDeclaredMethod("autoSizeColumns");
-                fit.setAccessible(true);
-                fit.invoke(w);
                 int row = Math.min(9, w.tree.visible().size() - 1);
                 w.table.setRowSelectionInterval(row, row);
                 w.table.scrollRectToVisible(w.table.getCellRect(0, 0, true));
@@ -63,6 +60,16 @@ public final class Shots {
 
                 w.tabs.setSelectedIndex(0);
                 w.validate();
+
+                // dialog kontroly kvality plánu nad oknem
+                java.util.List<ScheduleCheck.Finding> findings = ScheduleCheck.run(project);
+                ScheduleCheckDialog dialog = new ScheduleCheckDialog(w, findings);
+                dialog.pack();
+                dialog.addNotify();
+                dialog.validate();
+                shotWithDialog(w, dialog, outDir + "/check.png");
+                dialog.dispose();
+
                 // samotný diagram v plné velikosti (pro výřez do hlavičky stránky)
                 BufferedImage full = w.renderImage();
                 ImageIO.write(full, "png", new File(outDir + "/gantt-full.png"));
@@ -73,6 +80,30 @@ public final class Shots {
             }
         });
         System.exit(0);
+    }
+
+    /** Okno se ztmavením a dialogem uprostřed – jako když dialog opravdu vyskočí. */
+    private static void shotWithDialog(MainWindow w, javax.swing.JDialog dialog, String path) throws Exception {
+        BufferedImage img = new BufferedImage(w.getWidth(), w.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        w.getRootPane().printAll(g);
+        g.setColor(new java.awt.Color(0, 0, 0, 90));
+        g.fillRect(0, 0, img.getWidth(), img.getHeight());
+
+        BufferedImage d = new BufferedImage(dialog.getWidth(), dialog.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D dg = d.createGraphics();
+        dialog.getRootPane().printAll(dg);
+        dg.dispose();
+
+        int x = (img.getWidth() - d.getWidth()) / 2;
+        int y = (img.getHeight() - d.getHeight()) / 2;
+        g.setColor(new java.awt.Color(0, 0, 0, 60));
+        g.fillRoundRect(x - 6, y - 4, d.getWidth() + 12, d.getHeight() + 14, 12, 12);
+        g.drawImage(d, x, y, null);
+        g.setColor(new java.awt.Color(0, 0, 0, 120));
+        g.drawRect(x - 1, y - 1, d.getWidth() + 1, d.getHeight() + 1);
+        g.dispose();
+        ImageIO.write(img, "png", new File(path));
     }
 
     private static void shot(MainWindow w, String path) throws Exception {
