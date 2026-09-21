@@ -1,4 +1,4 @@
-# M3K Project View 1.0.2 (nativní C++) — prohlížeč MS Project (.mpp / .xml)
+# M3K Project View 1.0.3 (nativní C++) — prohlížeč MS Project (.mpp / .xml)
 
 Autor: **M3K Soft** · Prohlížeč harmonogramů MS Project pro techniky, kteří kontrolují průběh zakázky.
 Čistě Win32/C++, jeden soubor `mppview.exe` (~0,8 MB), žádný runtime, žádná Java, funguje i bez instalace.
@@ -28,7 +28,7 @@ Vyžaduje MSVC Build Tools 2022.
 
 ```
 build.cmd            (out\mppview.exe + out\mppread.dll + out\mppdump.exe)
-build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.2-Setup.exe přes Inno Setup 6)
+build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.3-Setup.exe přes Inno Setup 6)
 ```
 
 ## Soubory a licence
@@ -46,6 +46,14 @@ proto je pod **GNU LGPL 2.1 nebo pozdější** (`COPYING.LIB`); původní copyri
 | `cfb.h`, `mpp.h`, `mspdi.h`, `mppread.cpp`, `mppread.h`, `mppread.rc`, `build-mppread.cmd`, `mppdump.cpp` | mppread.dll (+ test. konzole) | LGPL 2.1+ (zveřejněno v `mppread-src.zip`) |
 | `model.h`, `serial.h`, `mppload.h` | sdílené aplikací i knihovnou | MIT (zveřejněno v `mppread-src.zip`) |
 | `ui.h`, `columns.h`, `filters.h`, `gantt.h`, `usage.h`, `exports.h`, `tools.h`, `panels.h`, `detail.h`, `mppview.cpp`, `mppview.rc` | mppview.exe | uzavřené, freeware |
+
+## Zabezpečení (1.0.3)
+- Čtečka OLE2 (`cfb.h`) omezí počty sektorů z hlavičky na to, co se do souboru vejde, řetězec sektorů nepřečte víc dat, než soubor obsahuje, a soubory nad 512 MB odmítne — poškozený soubor tak nemůže program zaseknout ani zahltit pamětí.
+- `mppread.dll` se načítá jen ze složky programu a její závislosti jen ze System32.
+- `mppview.exe`, `mppread.dll` i `mppdump.exe` jsou přeložené s `/sdl /guard:cf` (Control Flow Guard, ASLR, DEP).
+- Každá procedura okna zachytí nečekanou výjimku a ohlásí ji, místo aby program spadl.
+- Export CSV a kopírování do schránky: text začínající `=`, `+`, `-`, `@` dostane apostrof, aby ho Excel nespustil jako vzorec (čísla se znaménkem zůstanou); exporty hlásí i chybu zápisu (např. plný disk).
+- Ověřeno: 2 340 náhodně poškozených souborů bez pádu a zamrznutí; výstup čtečky nad 757 soubory MPXJ (přímo i přes DLL) je bajt po bajtu shodný s verzí 1.0.2.
 
 ## Ověření (stav k 21. 9. 2026)
 - Čtečka: celá testovací sada MPXJ (756 souborů) — **489/489** podporovaných (MPP12, MPP14, XML) se načte bez pádu; 267 odmítnutých jsou jen MPP8/9.

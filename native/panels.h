@@ -349,7 +349,7 @@ static LRESULT CALLBACK CalendarProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
         g_caExc = dlgList(hwnd, 8, 280, 400, 300, 505); lvColumn(g_caExc, 0, L"Název", 150); lvColumn(g_caExc, 1, L"Od", 80); lvColumn(g_caExc, 2, L"Do", 80); lvColumn(g_caExc, 3, L"Pracovní", 60); lvColumn(g_caExc, 4, L"Opakování", 90); lvColumn(g_caExc, 5, L"Hodin", 50, true);
         g_caPrev = dlgButton(hwnd, L"◀", 430, 6, 32, 506); g_caNext = dlgButton(hwnd, L"▶", 466, 6, 32, 507); g_caToday = dlgButton(hwnd, L"Dnes", 502, 6, 60, 508);
         g_caTitle = dlgCtl(hwnd, L"STATIC", L"", SS_LEFT, 570, 10, 800, 18, -1);
-        WNDCLASSW mc = {}; mc.lpfnWndProc = MonthProc; mc.hInstance = g_inst; mc.lpszClassName = L"MppMonth"; mc.hCursor = LoadCursor(nullptr, IDC_ARROW); RegisterClassW(&mc);
+        WNDCLASSW mc = {}; mc.lpfnWndProc = safeProc<MonthProc>; mc.hInstance = g_inst; mc.lpszClassName = L"MppMonth"; mc.hCursor = LoadCursor(nullptr, IDC_ARROW); RegisterClassW(&mc);
         g_caMonth = CreateWindowExW(WS_EX_CLIENTEDGE, L"MppMonth", L"", WS_CHILD | WS_VISIBLE, S(430), S(40), 100, 100, hwnd, nullptr, g_inst, nullptr);
         return 0;
     }
@@ -402,7 +402,7 @@ static LRESULT CALLBACK ProjectProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 static void registerPanelClasses() {
-    struct { const wchar_t* name; WNDPROC proc; } cls[] = { { L"MppTimeline", TimelineProc }, { L"MppResources", ResourcesProc }, { L"MppUsage", UsageProc }, { L"MppCalendar", CalendarProc }, { L"MppProject", ProjectProc } };
+    struct { const wchar_t* name; WNDPROC proc; } cls[] = { { L"MppTimeline", safeProc<TimelineProc> }, { L"MppResources", safeProc<ResourcesProc> }, { L"MppUsage", safeProc<UsageProc> }, { L"MppCalendar", safeProc<CalendarProc> }, { L"MppProject", safeProc<ProjectProc> } };
     for (auto& c : cls) { WNDCLASSW wc = {}; wc.lpfnWndProc = c.proc; wc.hInstance = g_inst; wc.lpszClassName = c.name; wc.hCursor = LoadCursor(nullptr, IDC_ARROW); wc.style = CS_DBLCLKS; RegisterClassW(&wc); }
 }
 static void refreshPanels() { rebuildTimeline(); fillResourcesPanel(); fillUsage(); fillCalendarPanel(); updateMonthTitle(); fillProjectPanel(); }

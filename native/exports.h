@@ -5,7 +5,7 @@
 // ---------------- CSV / schránka ----------------
 static std::wstring rowsAsText(const std::vector<int>& rows, wchar_t sep, bool csv) {
     std::wstring o;
-    auto cell = [&](const std::wstring& s) { return csv ? csvCell(s) : s; };
+    auto cell = [&](const std::wstring& s) { return csv ? csvCell(s) : tsvCell(s); };
     for (size_t i = 0; i < g_visible.size(); i++) { if (i) o += sep; o += cell(g_cols[g_visible[i]].title); }
     if (csv) o += L";Úroveň;Kritický;Poznámky";
     o += L"\r\n";
@@ -40,6 +40,8 @@ static uint32_t crc32buf(const std::string& d) {
 struct ZipWriter {
     FILE* f; struct E { std::string name; uint32_t crc, size, off; }; std::vector<E> entries;
     ZipWriter(const wchar_t* path) { f = _wfopen(path, L"wb"); if (!f) throw std::runtime_error("Soubor nelze zapsat"); }
+    ~ZipWriter() { if (f) fclose(f); } // při výjimce uprostřed zápisu soubor aspoň zavřít
+    ZipWriter(const ZipWriter&) = delete; ZipWriter& operator=(const ZipWriter&) = delete;
     void put32(uint32_t v) { fputc(v & 255, f); fputc((v >> 8) & 255, f); fputc((v >> 16) & 255, f); fputc((v >> 24) & 255, f); }
     void put16(uint32_t v) { fputc(v & 255, f); fputc((v >> 8) & 255, f); }
     void add(const std::string& name, const std::string& data) {
@@ -53,7 +55,8 @@ struct ZipWriter {
         for (E& e : entries) { put32(0x02014b50); put16(20); put16(20); put16(0x0800); put16(0); put16(0); put16(0x21); put32(e.crc); put32(e.size); put32(e.size); put16((uint32_t)e.name.size()); put16(0); put16(0); put16(0); put16(0); put32(0); put32(e.off); fwrite(e.name.data(), 1, e.name.size(), f); }
         uint32_t cdSize = (uint32_t)ftell(f) - cd;
         put32(0x06054b50); put16(0); put16(0); put16((uint32_t)entries.size()); put16((uint32_t)entries.size()); put32(cdSize); put32(cd); put16(0);
-        fclose(f);
+        bool ok = !ferror(f); if (fclose(f) != 0) ok = false; f = nullptr;
+        if (!ok) throw std::runtime_error("Soubor nelze zapsat (plny disk?)");
     }
 };
 static std::string xmlEsc(const std::wstring& w) {
@@ -188,6 +191,7 @@ static bool exportPng(const wchar_t* path = nullptr) {
 // PDF: každá stránka = obrázek; data přebíráme z PNG (IDAT = zlib deflate s PNG prediktory) -> /FlateDecode s /Predictor 15
 static bool writePdf(const wchar_t* path, int pages, double wpt, double hpt, std::function<HBITMAP(int)> render, const std::wstring& title) {
     FILE* f = _wfopen(path, L"wb"); if (!f) return false;
+    try { // při výjimce (málo paměti) soubor zavřít, jinak by zůstal zamčený až do konce programu
     std::vector<long> offs; auto tell = [&]() { return ftell(f); };
     auto puts_ = [&](const std::string& s) { fwrite(s.data(), 1, s.size(), f); };
     puts_("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
@@ -198,7 +202,8 @@ static bool writePdf(const wchar_t* path, int pages, double wpt, double hpt, std
     offs.push_back(tell()); puts_("3 0 obj\n<< /Producer (M3K Project View " + mpp::wideToUtf8(APP_VERSION) + ") /Title (" + t + ") >>\nendobj\n");
     char wb[32], hb[32]; snprintf(wb, 32, "%.2f", wpt); snprintf(hb, 32, "%.2f", hpt);
     for (int i = 0; i < pages; i++) {
-        HBITMAP bmp = render(i); BITMAP bm; GetObject(bmp, sizeof(bm), &bm);
+        HBITMAP bmp = render(i); BITMAP bm = {};
+        if (!bmp || !GetObject(bmp, sizeof(bm), &bm)) { if (bmp) DeleteObject(bmp); fclose(f); return false; } // málo paměti na stránku
         std::string png = pngBytes(bmp); DeleteObject(bmp);
         std::string idat; int colorType = -1;
         for (size_t p = 8; p + 8 <= png.size();) { uint32_t len = ((uint8_t)png[p] << 24) | ((uint8_t)png[p + 1] << 16) | ((uint8_t)png[p + 2] << 8) | (uint8_t)png[p + 3]; std::string type = png.substr(p + 4, 4); if (type == "IHDR" && len >= 13) colorType = (uint8_t)png[p + 8 + 9]; if (type == "IDAT") idat += png.substr(p + 8, len); p += 12 + len; }
@@ -220,8 +225,15 @@ static bool writePdf(const wchar_t* path, int pages, double wpt, double hpt, std
     puts_("xref\n0 " + std::to_string(offs.size() + 1) + "\n0000000000 65535 f \n");
     for (long o : offs) { char b[32]; snprintf(b, 32, "%010ld 00000 n \n", o); puts_(b); }
     puts_("trailer\n<< /Size " + std::to_string(offs.size() + 1) + " /Root 1 0 R /Info 3 0 R >>\nstartxref\n" + std::to_string(xref) + "\n%%EOF\n");
-    fclose(f);
-    return true;
+    } catch (...) { fclose(f); throw; }
+    bool ok = !ferror(f); if (fclose(f) != 0) ok = false;
+    return ok;
+}
+// Řádků na stránku a počet stránek tisku i PDF – rozměry odpovídají rozvržení v renderReport (gantt.h).
+static void pageSplit(int ph, int dpi, int margin, int& perPage, int& pages) {
+    int rowH = MulDiv(18, dpi, 96), headerH = MulDiv(30, dpi, 96), titleH = MulDiv(26, dpi, 96), legendH = MulDiv(24, dpi, 96);
+    perPage = imax(1, (ph - 2 * margin - headerH - titleH - legendH) / rowH);
+    pages = ((int)g_rows.size() + perPage - 1) / perPage;
 }
 static bool exportPdf(const wchar_t* path = nullptr, bool a3 = false) {
     if (!g_loaded || g_rows.empty()) return false;
@@ -237,12 +249,13 @@ static bool exportPdf(const wchar_t* path = nullptr, bool a3 = false) {
     if (!path && !saveDialog(buf, L"PDF\0*.pdf\0", L"pdf", L"Uložit harmonogram do PDF")) return false;
     double wpt = a3 ? 1190.55 : 841.89, hpt = a3 ? 841.89 : 595.28; int dpi = 150;
     int pw = (int)(wpt / 72 * dpi), ph = (int)(hpt / 72 * dpi);
-    int margin = MulDiv(30, dpi, 96), rowH = MulDiv(18, dpi, 96), headerH = MulDiv(30, dpi, 96), titleH = MulDiv(26, dpi, 96), legendH = MulDiv(24, dpi, 96);
-    int perPage = imax(1, (ph - 2 * margin - headerH - titleH - legendH) / rowH);
-    int pages = ((int)g_rows.size() + perPage - 1) / perPage;
-    bool ok = writePdf(buf, pages, wpt, hpt, [&](int pg) {
-        return renderPageBitmap(pw, ph, 96, [&](HDC hdc, RECT) { RECT area = { margin, margin, pw - margin, ph - margin }; renderReport(hdc, area, pg * perPage, imin((int)g_rows.size(), (pg + 1) * perPage), pg + 1, pages); });
-    }, baseName());
+    int margin = MulDiv(30, dpi, 96), perPage = 1, pages = 1; pageSplit(ph, dpi, margin, perPage, pages);
+    bool ok = false;
+    try {
+        ok = writePdf(buf, pages, wpt, hpt, [&](int pg) {
+            return renderPageBitmap(pw, ph, 96, [&](HDC hdc, RECT) { RECT area = { margin, margin, pw - margin, ph - margin }; renderReport(hdc, area, pg * perPage, imin((int)g_rows.size(), (pg + 1) * perPage), pg + 1, pages); });
+        }, baseName());
+    } catch (const std::exception&) { ok = false; } // např. málo paměti – hlášení níže
     if (path) return ok;
     if (!ok) msgError(L"PDF se nepodařilo uložit."); else ShellExecuteW(nullptr, L"open", buf, nullptr, nullptr, SW_SHOWNORMAL);
     return ok;
@@ -256,9 +269,7 @@ static void printReport() {
     if (!PrintDlgW(&pd) || !pd.hDC) return;
     HDC hdc = pd.hDC;
     int pw = GetDeviceCaps(hdc, HORZRES), ph = GetDeviceCaps(hdc, VERTRES), dpi = GetDeviceCaps(hdc, LOGPIXELSX);
-    int margin = MulDiv(40, dpi, 96), rowH = MulDiv(18, dpi, 96), headerH = MulDiv(30, dpi, 96), titleH = MulDiv(26, dpi, 96), legendH = MulDiv(24, dpi, 96);
-    int perPage = imax(1, (ph - 2 * margin - headerH - titleH - legendH) / rowH);
-    int pages = ((int)g_rows.size() + perPage - 1) / perPage;
+    int margin = MulDiv(40, dpi, 96), perPage = 1, pages = 1; pageSplit(ph, dpi, margin, perPage, pages);
     DOCINFOW di = { sizeof(di) }; std::wstring dn = std::wstring(APP_TITLE) + L" – " + baseName(); di.lpszDocName = dn.c_str();
     if (StartDocW(hdc, &di) > 0) {
         for (int p = 0; p < pages; p++) { StartPage(hdc); RECT area = { margin, margin, pw - margin, ph - margin }; renderReport(hdc, area, p * perPage, imin((int)g_rows.size(), (p + 1) * perPage), p + 1, pages); EndPage(hdc); }

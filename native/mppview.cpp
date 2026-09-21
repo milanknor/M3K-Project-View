@@ -437,7 +437,8 @@ static void loadFile(const std::wstring& path, int keepUid) {
     SendMessage(g_status, SB_SETTEXT, 0, (LPARAM)(fileName(path) + (g_prj.title.empty() ? L"" : L"  (" + g_prj.title + L")")).c_str());
     updateSelectionStatus();
     SendMessage(g_status, SB_SETTEXT, 2, (LPARAM)(L"Projekt: " + mpp::fmtDate(g_prj.startDate) + L" – " + mpp::fmtDate(g_prj.finishDate) + (g_prj.statusDate ? L"   Stav k: " + mpp::fmtDate(g_prj.statusDate) : L"   (stav k dnešku)")).c_str());
-    addRecent(path); updateDetail(); rebuildColorMenu(); rebuildBaselineMenu(); refreshPanels();
+    if (!g_batch) addRecent(path); // dávkový export (--csv/--pdf…) nemá měnit seznam nedávných souborů
+    updateDetail(); rebuildColorMenu(); rebuildBaselineMenu(); refreshPanels();
 }
 static void reloadFile() { if (g_loaded) loadFile(g_file, selectedUid() >= 0 ? selectedUid() : 0); }
 static void checkFileChanged() {
@@ -816,9 +817,9 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR, int show) {
     Gdiplus::GdiplusStartupInput gsi; ULONG_PTR gdiToken = 0; Gdiplus::GdiplusStartup(&gdiToken, &gsi, nullptr);
     HDC sdc = GetDC(nullptr); g_dpi = GetDeviceCaps(sdc, LOGPIXELSX); ReleaseDC(nullptr, sdc);
     loadSettings(); createFonts(); applyThemeColors(); registerDlgClass(); registerPanelClasses(); registerDetailClasses();
-    WNDCLASSW gc = {}; gc.lpfnWndProc = GanttProc; gc.hInstance = inst; gc.lpszClassName = L"MppGantt"; gc.hCursor = LoadCursor(nullptr, IDC_ARROW); gc.style = CS_DBLCLKS; RegisterClassW(&gc);
-    WNDCLASSW tc = {}; tc.lpfnWndProc = TipProc; tc.hInstance = inst; tc.lpszClassName = L"MppTip"; tc.hCursor = LoadCursor(nullptr, IDC_ARROW); RegisterClassW(&tc);
-    WNDCLASSW wc = {}; wc.lpfnWndProc = MainProc; wc.hInstance = inst; wc.lpszClassName = L"MppViewMain"; wc.hCursor = LoadCursor(nullptr, IDC_ARROW); wc.hbrBackground = nullptr; wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1)); RegisterClassW(&wc);
+    WNDCLASSW gc = {}; gc.lpfnWndProc = safeProc<GanttProc>; gc.hInstance = inst; gc.lpszClassName = L"MppGantt"; gc.hCursor = LoadCursor(nullptr, IDC_ARROW); gc.style = CS_DBLCLKS; RegisterClassW(&gc);
+    WNDCLASSW tc = {}; tc.lpfnWndProc = safeProc<TipProc>; tc.hInstance = inst; tc.lpszClassName = L"MppTip"; tc.hCursor = LoadCursor(nullptr, IDC_ARROW); RegisterClassW(&tc);
+    WNDCLASSW wc = {}; wc.lpfnWndProc = safeProc<MainProc>; wc.hInstance = inst; wc.lpszClassName = L"MppViewMain"; wc.hCursor = LoadCursor(nullptr, IDC_ARROW); wc.hbrBackground = nullptr; wc.hIcon = LoadIconW(inst, MAKEINTRESOURCEW(1)); RegisterClassW(&wc);
 
     HMENU menu = CreateMenu(), mHelp = CreatePopupMenu(), mTools = CreatePopupMenu();
     g_menuFile = CreatePopupMenu(); g_menuView = CreatePopupMenu(); g_menuViews = CreatePopupMenu(); g_menuColor = CreatePopupMenu(); g_menuBaseline = CreatePopupMenu(); g_menuCols = CreatePopupMenu();

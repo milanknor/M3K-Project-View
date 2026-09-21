@@ -6,9 +6,9 @@ setlocal
 call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" >nul 2>&1
 cd /d "%~dp0"
 if not exist out mkdir out
-set CL_FLAGS=/nologo /std:c++17 /EHsc /O1 /Os /MT /utf-8 /W3 /DUNICODE /D_UNICODE /DNDEBUG /Fo:out\
+set CL_FLAGS=/nologo /std:c++17 /EHsc /O1 /Os /MT /utf-8 /W3 /sdl /guard:cf /DUNICODE /D_UNICODE /DNDEBUG /Fo:out\
 rc /nologo /fo out\mppread.res mppread.rc
-cl %CL_FLAGS% /LD mppread.cpp /Fe:out\mppread.dll /link out\mppread.res
+cl %CL_FLAGS% /LD mppread.cpp /Fe:out\mppread.dll /link out\mppread.res /guard:cf
 if errorlevel 1 exit /b 1
 rem volitelne: testovaci konzole (mppdump soubor.mpp, mppdump -dll soubor.mpp)
 cl %CL_FLAGS% mppdump.cpp /Fe:out\mppdump.exe

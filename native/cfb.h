@@ -22,6 +22,7 @@ public:
     static const uint32_t NOSTREAM = 0xFFFFFFFF;
     static const uint32_t ENDOFCHAIN = 0xFFFFFFFE;
     static const uint32_t MAXREGSECT = 0xFFFFFFFA;
+    static const long MAX_FILE = 512L * 1024 * 1024;   // skutečné .mpp mají jednotky až desítky MB
 
     void load(const std::wstring& path) {
         FILE* f = _wfopen(path.c_str(), L"rb");
@@ -30,6 +31,7 @@ public:
         long n = ftell(f);
         fseek(f, 0, SEEK_SET);
         if (n < 0) { fclose(f); throw std::runtime_error("Soubor nelze precist"); }
+        if (n > MAX_FILE) { fclose(f); throw std::runtime_error("Soubor je prilis velky"); }
         file.resize((size_t)n);
         if (n > 0 && fread(file.data(), 1, (size_t)n, f) != (size_t)n) { fclose(f); throw std::runtime_error("Soubor nelze precist"); }
         fclose(f);
@@ -111,6 +113,9 @@ private:
             uint64_t avail = src.size() - off;
             uint64_t take = ss < remaining ? ss : remaining;
             if (take > avail) take = avail;
+            // platný řetězec čte každý sektor jednou, takže nikdy nepřečte víc, než je ve zdroji;
+            // cyklus v tabulce by jinak soubor „nafoukl“ až na (počet položek FAT) × sektor
+            if (out.size() + take > src.size()) break;
             out.insert(out.end(), src.begin() + (size_t)off, src.begin() + (size_t)(off + take));
             remaining -= take;
             if (s >= table.size()) break;
@@ -135,6 +140,11 @@ private:
         uint32_t firstDifat = u32(file, 0x44);
         uint32_t numDifat = u32(file, 0x48);
         uint32_t perSec = secSize / 4;
+        // Počty z hlavičky nesmí přesáhnout, kolik sektorů se do souboru vůbec vejde:
+        // jinak by cyklický řetězec DIFAT běžel miliardy kroků a tabulka FAT zabrala gigabajty.
+        uint32_t maxSectors = (uint32_t)((file.size() - 512) / secSize + 1);
+        if (numFat > maxSectors) numFat = maxSectors;
+        if (numDifat > maxSectors) numDifat = maxSectors;
 
         // DIFAT: 109 položek v hlavičce + řetězec DIFAT sektorů
         std::vector<uint32_t> fatSectors;

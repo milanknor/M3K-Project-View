@@ -247,6 +247,6 @@ static LRESULT CALLBACK DetailProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 static void registerDetailClasses() {
     WNDCLASSW c = {}; c.hInstance = g_inst; c.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    c.lpfnWndProc = DetailProc; c.lpszClassName = L"MppDetail"; RegisterClassW(&c);
-    c.lpfnWndProc = DetailGenProc; c.lpszClassName = L"MppDetailGen"; RegisterClassW(&c);
+    c.lpfnWndProc = safeProc<DetailProc>; c.lpszClassName = L"MppDetail"; RegisterClassW(&c);
+    c.lpfnWndProc = safeProc<DetailGenProc>; c.lpszClassName = L"MppDetailGen"; RegisterClassW(&c);
 }

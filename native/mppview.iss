@@ -3,22 +3,22 @@
 [Setup]
 AppId={{B2F4E6A8-5C31-4D7E-9A20-3E1F7C9D8B45}
 AppName=M3K Project View
-AppVersion=1.0.2
-AppVerName=M3K Project View 1.0.2
+AppVersion=1.0.3
+AppVerName=M3K Project View 1.0.3
 AppPublisher=Milan Knor (M3K Soft)
 AppPublisherURL=https://m3ksoft.cz
 AppSupportURL=https://m3ksoft.cz
 AppCopyright=(c) 2026 Milan Knor (M3K Soft), freeware; mppread.dll = GNU LGPL 2.1+ (port MPXJ, Packwood Software)
 VersionInfoCompany=Milan Knor (M3K Soft)
-VersionInfoVersion=1.0.2
+VersionInfoVersion=1.0.3
 DefaultDirName={autopf}\M3K Soft\M3K Project View
 DefaultGroupName=M3K Soft
 UninstallDisplayIcon={app}\mppview.exe
-UninstallDisplayName=M3K Project View 1.0.2
+UninstallDisplayName=M3K Project View 1.0.3
 SetupIconFile=mppview.ico
 LicenseFile=LICENSE.txt
 OutputDir=out
-OutputBaseFilename=M3K-Project-View-1.0.2-Setup
+OutputBaseFilename=M3K-Project-View-1.0.3-Setup
 Compression=lzma2/ultra
 SolidCompression=yes
 ChangesAssociations=yes

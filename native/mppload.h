@@ -11,7 +11,8 @@ inline Project loadProject(const std::wstring& path) {
         // jen z adresáře programu (ne z aktuálního adresáře - ochrana proti podvržené DLL)
         wchar_t exe[MAX_PATH] = {}; GetModuleFileNameW(nullptr, exe, MAX_PATH);
         std::wstring dll = exe; dll = dll.substr(0, dll.find_last_of(L"\\/") + 1) + L"mppread.dll";
-        HMODULE m = LoadLibraryExW(dll.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+        // závislosti knihovny (xmllite, shlwapi…) jen ze System32 – podvržená DLL vedle programu se nenačte
+        HMODULE m = LoadLibraryExW(dll.c_str(), nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (!m) throw std::runtime_error("Chybí knihovna mppread.dll (musí být ve stejné složce jako program).");
         auto fVer = (MppRead_ApiVersion_t)GetProcAddress(m, "MppRead_ApiVersion");
         auto o = (MppRead_Open_t)GetProcAddress(m, "MppRead_Open"); auto f = (MppRead_Free_t)GetProcAddress(m, "MppRead_Free");

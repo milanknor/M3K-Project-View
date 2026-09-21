@@ -16,7 +16,6 @@
 #include <functional>
 #include <climits>
 #include "mppload.h" // model + načítání přes mppread.dll (čtečka je samostatná knihovna pod LGPL)
-#include <functional>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "user32.lib")
@@ -35,7 +34,7 @@ static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
 static const wchar_t* APP_TITLE = L"M3K Project View";
 static const wchar_t* APP_AUTHOR = L"Milan Knor (M3K Soft), https://m3ksoft.cz";
-static const wchar_t* APP_VERSION = L"1.0.2";
+static const wchar_t* APP_VERSION = L"1.0.3";
 
 // ---------------- globální stav ----------------
 static HINSTANCE g_inst;
@@ -84,6 +83,24 @@ static std::wstring baseName() { std::wstring n = g_file.substr(g_file.find_last
 static std::wstring fileName(const std::wstring& p) { return p.substr(p.find_last_of(L"\\/") + 1); }
 static bool g_batch = false; // --csv/--png/...: žádná okna, jen exit kód
 static void msgError(const std::wstring& s) { if (g_batch) { fputs((mpp::wideToUtf8(s) + "\n").c_str(), stderr); return; } MessageBoxW(g_main, s.c_str(), APP_TITLE, MB_ICONERROR); }
+
+// C++ výjimka nesmí projít přes rámce Windows (nedefinované chování = pád programu), proto každou
+// proceduru okna obalí safeProc: chybu ohlásí a zprávu dokončí výchozí obsluha. Hlášení se nevnořuje,
+// aby chyba při kreslení nevyvolala řetěz oken.
+static void reportUnexpected(const char* what) {
+    static bool showing = false;
+    if (showing) return;
+    showing = true;
+    msgError(L"Neočekávaná chyba programu" + (what ? L":\n" + mpp::ansiToWide(what, CP_UTF8) : std::wstring(L".")) +
+             L"\n\nOtevřený soubor se nezměnil; pokud se chyba opakuje, napište prosím na info@m3ksound.cz.");
+    showing = false;
+}
+template<WNDPROC P> LRESULT CALLBACK safeProc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    try { return P(h, m, w, l); }
+    catch (const std::exception& e) { reportUnexpected(e.what()); }
+    catch (...) { reportUnexpected(nullptr); }
+    return DefWindowProcW(h, m, w, l);
+}
 static std::vector<std::wstring> split(const std::wstring& s, wchar_t sep) { std::vector<std::wstring> v; size_t p = 0; while (true) { size_t e = s.find(sep, p); v.push_back(s.substr(p, e == std::wstring::npos ? std::wstring::npos : e - p)); if (e == std::wstring::npos) break; p = e + 1; } return v; }
 static std::wstring join(const std::vector<std::wstring>& v, const wchar_t* sep) { std::wstring s; for (size_t i = 0; i < v.size(); i++) { if (i) s += sep; s += v[i]; } return s; }
 
@@ -134,7 +151,7 @@ static LRESULT CALLBACK DlgProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
-static void registerDlgClass() { WNDCLASSW wc = {}; wc.lpfnWndProc = DlgProc; wc.hInstance = g_inst; wc.lpszClassName = L"MppDlg"; wc.hCursor = LoadCursor(nullptr, IDC_ARROW); RegisterClassW(&wc); }
+static void registerDlgClass() { WNDCLASSW wc = {}; wc.lpfnWndProc = safeProc<DlgProc>; wc.hInstance = g_inst; wc.lpszClassName = L"MppDlg"; wc.hCursor = LoadCursor(nullptr, IDC_ARROW); RegisterClassW(&wc); }
 static HWND dlgCreate(Dlg& d, const wchar_t* title, int w, int h, bool resizable = false) {
     RECT mr; GetWindowRect(g_main, &mr);
     int W = S(w), H = S(h);
@@ -217,6 +234,21 @@ static void clipboardText(const std::wstring& s) {
 static void writeUtf8(const wchar_t* path, const std::wstring& content, bool bom = true) {
     FILE* f = _wfopen(path, L"wb"); if (!f) throw std::runtime_error("Soubor nelze zapsat");
     if (bom) fwrite("\xEF\xBB\xBF", 1, 3, f);
-    std::string u = mpp::wideToUtf8(content); fwrite(u.data(), 1, u.size(), f); fclose(f);
+    std::string u = mpp::wideToUtf8(content); bool ok = fwrite(u.data(), 1, u.size(), f) == u.size() && !ferror(f);
+    if (fclose(f) != 0 || !ok) throw std::runtime_error("Soubor nelze zapsat (plny disk?)");
 }
-static std::wstring csvCell(std::wstring s) { bool q = s.find_first_of(L";\"\n\r") != std::wstring::npos; if (!q) return s; std::wstring o = L"\""; for (wchar_t c : s) { if (c == L'"') o += L"\"\""; else o += c; } return o + L"\""; }
+// Text začínající =, +, -, @ (nebo tabulátorem) by Excel po otevření CSV či vložení ze schránky mohl
+// vyhodnotit jako vzorec – u harmonogramu od cizí firmy nebezpečné (CSV injection). Takový text dostane
+// na začátek apostrof; čísla se znaménkem („+5“, „-3“) a hodnoty jako „+2 prac. dní“ zůstanou beze změny.
+static std::wstring noFormula(const std::wstring& s) {
+    if (s.empty() || !wcschr(L"=+-@\t\r", s[0])) return s;
+    if ((s[0] == L'+' || s[0] == L'-') && s.size() > 1 && iswdigit(s[1])) {
+        bool plain = true;
+        for (size_t i = 1; i < s.size() && plain; i++) plain = iswdigit(s[i]) || IsCharAlphaW(s[i]) || wcschr(L" ,.% ", s[i]);
+        if (plain) return s;
+    }
+    return L"'" + s;
+}
+// Buňka do schránky (oddělovač tabulátor): tabulátor ani konec řádku uvnitř textu nesmí rozbít tabulku.
+static std::wstring tsvCell(std::wstring s) { for (wchar_t& c : s) if (c == L'\t' || c == L'\r' || c == L'\n') c = L' '; return noFormula(s); }
+static std::wstring csvCell(std::wstring s) { s = noFormula(s); bool q =s.find_first_of(L";\"\n\r") != std::wstring::npos; if (!q) return s; std::wstring o = L"\""; for (wchar_t c : s) { if (c == L'"') o += L"\"\""; else o += c; } return o + L"\""; }
