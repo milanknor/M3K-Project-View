@@ -1,0 +1,98 @@
+﻿M3K Project View (nativní verze) – licenční podmínky (freeware)
+Copyright (c) 2026 Milan Knor (M3K Soft)
+Poskytovatel: Milan Knor, podnikající fyzická osoba (značka M3K Soft), web: https://m3ksoft.cz
+
+1. Program M3K Project View („Program“) tvoří aplikace mppview.exe (vlastní dílo poskytovatele)
+   a samostatně licencované součásti uvedené v bodě 3. Program je poskytován zdarma
+   (freeware). Smíte jej používat bez omezení počtu instalací, k soukromým i komerčním
+   účelům.
+
+2. Aplikaci mppview.exe a celý instalační balíček Programu smíte volně kopírovat a dále
+   šířit, a to pouze bezplatně, v nezměněné podobě (celý instalační balíček nebo celá
+   složka Programu včetně mppread.dll, mppread-src.zip a licenčních souborů) a s těmito
+   licenčními podmínkami. Aplikaci mppview.exe není dovoleno prodávat, pronajímat,
+   upravovat, dekompilovat ani z ní odvozovat jiná díla, není-li v bodě 3 stanoveno jinak.
+   Zdrojový kód aplikace mppview.exe není součástí distribuce a autor jej neposkytuje.
+   Omezení podle tohoto bodu se nevztahují na knihovnu mppread.dll, její zdrojový kód ani
+   na samostatně licencované součásti uvedené v bodě 3. Práva k těmto součástem se řídí
+   jejich příslušnými licencemi GNU LGPL a MIT, včetně práv k úpravám a k bezplatnému
+   i úplatnému šíření. V případě rozporu mají pro tyto součásti přednost jejich licence.
+
+3. Samostatně licencované součásti:
+   a) Knihovna mppread.dll (čtení souborů .mpp a .xml) je poskytována pod licencí
+      GNU Lesser General Public License verze 2.1 nebo (dle vaší volby) kterékoli pozdější
+      verze (soubor COPYING.LIB). Je odvozena z knihovny MPXJ (Copyright (c) Packwood
+      Software 2002-2022, Jon Iles, https://github.com/joniles/mpxj); úpravy Copyright (c)
+      2026 M3K Soft. Její úplný zdrojový kód včetně skriptů pro sestavení je přiložen
+      v souboru mppread-src.zip (seznam původních souborů MPXJ a záznam změn je v hlavičce
+      souboru mpp.h).
+   b) Soubory model.h, serial.h a mppload.h v mppread-src.zip jsou poskytovány pod licencí
+      MIT (soubor LICENSE-MIT.txt).
+   c) Bez ohledu na omezení v bodě 2 smíte Program upravovat pro vlastní potřebu
+      a provádět jeho zpětnou analýzu za účelem ladění takových úprav. Smíte rovněž
+      nahradit knihovnu mppread.dll vlastní upravenou verzí kompatibilní s rozhraním
+      používaným Programem (Program ji načítá dynamicky při spuštění ze své složky).
+      Tím nejsou dotčena další práva přiznaná licencemi jednotlivých součástí ani práva
+      vyplývající z kogentních právních předpisů.
+
+4. Program nemění otevírané soubory projektu (pouze je čte); nové soubory vytváří jen
+   při exportu na pokyn uživatele. Program sám nenavazuje žádné síťové spojení
+   a nikam neodesílá žádná data; otevírá pouze soubory zvolené uživatelem.
+
+5. PROGRAM JE POSKYTOVÁN „TAK, JAK JE“, BEZ JAKÉKOLI ZÁRUKY, výslovné či
+   předpokládané, včetně záruky prodejnosti, vhodnosti pro určitý účel nebo
+   správnosti zobrazených údajů. Autor neodpovídá za škodu vzniklou používáním Programu
+   nebo nemožností jej použít. Program používáte na vlastní odpovědnost; rozhodující
+   jsou vždy údaje v původním souboru Microsoft Project.
+   Vyloučení záruk a omezení odpovědnosti podle tohoto bodu se uplatní pouze v rozsahu
+   dovoleném příslušnými právními předpisy. Tato ustanovení nevylučují ani neomezují
+   práva uživatele nebo odpovědnost poskytovatele, které podle těchto předpisů nelze
+   vyloučit nebo omezit.
+
+6. Microsoft Project je ochranná známka společnosti Microsoft Corporation. Program
+   není produktem společnosti Microsoft ani s ní není nijak spojen.
+
+7. Tyto licenční podmínky se řídí právním řádem České republiky. Na licence součástí
+   podle bodu 3 (GNU LGPL, MIT) se tento bod nevztahuje; jejich význam nemění ani
+   přednost českého znění podle anglického shrnutí níže.
+
+----------------------------------------------------------------------
+
+M3K Project View (native edition) – License Terms (freeware) – English summary; the Czech text above prevails.
+Copyright (c) 2026 Milan Knor (M3K Soft)
+Licensor: Milan Knor, self-employed natural person (brand M3K Soft), website: https://m3ksoft.cz
+
+The Program consists of the application mppview.exe (own work of the licensor) and the
+separately licensed components listed below. It is free of charge for private and
+commercial use, with no limit on the number of installations. You may copy and
+redistribute the application and the complete installation package only free of charge,
+in unmodified form (the complete installer or the complete program folder including
+mppread.dll, mppread-src.zip and the license files) together with these terms. Selling,
+renting, modifying, decompiling or creating derivative works of mppview.exe is not
+permitted except as stated below; its source code is not distributed.
+These restrictions do not apply to mppread.dll, its source code or the other separately
+licensed components; those are governed solely by their own licenses (GNU LGPL, MIT),
+including the rights to modify them and to redistribute them free of charge or for a fee.
+In case of conflict, their licenses prevail for those components.
+
+Separately licensed components:
+- mppread.dll (reading .mpp/.xml files): GNU Lesser General Public License version 2.1
+  or (at your option) any later version (COPYING.LIB). Derived from MPXJ (Copyright (c)
+  Packwood Software 2002-2022, Jon Iles, https://github.com/joniles/mpxj); modifications
+  Copyright (c) 2026 Milan Knor (M3K Soft). Complete source code including build scripts is included
+  in mppread-src.zip.
+- model.h, serial.h and mppload.h in mppread-src.zip: MIT license (LICENSE-MIT.txt).
+- Notwithstanding the restrictions above, you may modify the Program for your own use and
+  reverse engineer it for debugging such modifications, and you may replace mppread.dll
+  with your own modified version compatible with the interface used by the Program. This
+  does not affect other rights granted by the component licenses or by mandatory law.
+
+The Program does not modify the project files it opens (it only reads them); it creates
+new files only when the user exports. It does not open any network connection by itself
+and does not send any data anywhere.
+THE PROGRAM IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. To the extent permitted by
+applicable law, the author shall not be liable for any damages arising from the use of, or
+inability to use, the Program; rights and liability that cannot be excluded or limited by
+law are not affected. Microsoft Project is a trademark of Microsoft Corporation; the Program
+is not a Microsoft product and is not affiliated with Microsoft. These terms are governed
+by the laws of the Czech Republic (this does not apply to the GNU LGPL and MIT licenses).
