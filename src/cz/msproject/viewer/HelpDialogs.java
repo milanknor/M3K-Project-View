@@ -33,7 +33,7 @@ final class HelpDialogs {
     static void showAbout(Component parent) {
         String text = "<html><body style='" + Theme.HTML_BODY + ";width:420px'>"
                 + "<div style='font-size:14pt'>" + MainWindow.APP_NAME_HTML + " " + MainWindow.VERSION + "</div>"
-                + Str.t("Prohlížeč souborů Microsoft Project (pouze pro čtení).<br>")
+                + Str.t("Prohlížeč dokumentů MS Project (pouze pro čtení).<br>")
                 + Str.t("Autor: ") + MainWindow.AUTHOR + Str.t(". Freeware – zdarma k použití i šíření v nezměněné podobě (Nápověda → Licence…).<br><br>")
                 + Str.t("Čtení souborů zajišťuje knihovna <b>MPXJ</b> (https://www.mpxj.org, licence LGPL 2.1+). ")
                 + Str.t("Licence všech knihoven třetích stran: Nápověda → Licence… (a složka <b>licenses</b> vedle programu).<br>")

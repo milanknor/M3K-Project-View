@@ -1,10 +1,10 @@
 ﻿; Instalátor M3K Project View (Inno Setup 6).
 ; Vstup: dist\M3K Project View\ (výstup jpackage app-image z build.ps1 -Package).
 ; Výstup: dist\M3K-Project-View-<verze>-Setup.exe
-; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.4.0 installer\setup.iss)
+; Sestavení: .\build.ps1 -Installer   (nebo ISCC.exe /DAppVersion=0.4.1 installer\setup.iss)
 
 #ifndef AppVersion
-  #define AppVersion "0.4.0"
+  #define AppVersion "0.4.1"
 #endif
 #define AppName "M3K Project View"
 #define AppExeName "M3K Project View.exe"
@@ -67,7 +67,7 @@ Name: "assoc"; Description: "{cm:AssocTask}"; GroupDescription: "{cm:AssocGroup}
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "Prohlížeč souborů Microsoft Project"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Comment: "Prohlížeč dokumentů MS Project"
 Name: "{group}\Čtěte mě"; Filename: "{app}\CTETE-ME.md"
 Name: "{group}\Licence"; Filename: "{app}\LICENSE.txt"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon

@@ -184,7 +184,7 @@ public final class Str {
                 {"Žádné souhrnné úkoly ani milníky k zobrazení.", "No summary tasks or milestones to show."}, {" bloků · ", " blocks · "}, {" milníků · ", " milestones · "},
                 {"Nic k zobrazení – zvolte jinou úroveň nebo zapněte milníky.", "Nothing to show – choose another level or enable milestones."},
                 // úvodní obrazovka
-                {"Prohlížeč souborů Microsoft Project – MPP, MPT, XML, MPX, MPD. Pouze pro čtení.", "Microsoft Project file viewer – MPP, MPT, XML, MPX, MPD. Read-only."},
+                {"Prohlížeč dokumentů MS Project – MPP, MPT, XML, MPX, MPD. Pouze pro čtení.", "MS Project document viewer – MPP, MPT, XML, MPX, MPD. Read-only."},
                 {"Otevřít soubor…   (Ctrl+O)", "Open file…   (Ctrl+O)"}, {"nebo přetáhněte soubor kamkoli do tohoto okna", "or drag a file anywhere into this window"},
                 {"(zatím žádné)", "(none yet)"}, {" – soubor nenalezen", " – file not found"},
                 // projekt
@@ -212,7 +212,7 @@ public final class Str {
                 {"Knihovny třetích stran a běhové prostředí Java mají vlastní licence; ", "Third-party libraries and the Java runtime have their own licenses; "},
                 {"stejné texty jsou i ve složce <b>licenses</b> vedle programu.</html>", "the same texts are in the <b>licenses</b> folder next to the program.</html>"},
                 {"Licenční texty nejsou v tomto sestavení k dispozici (chybí zdroje licenses/).", "License texts are not available in this build (licenses/ resources missing)."},
-                {"Prohlížeč souborů Microsoft Project (pouze pro čtení).<br>", "Microsoft Project file viewer (read-only).<br>"},
+                {"Prohlížeč dokumentů MS Project (pouze pro čtení).<br>", "MS Project document viewer (read-only).<br>"},
                 {"Autor: ", "Author: "}, {". Freeware – zdarma k použití i šíření v nezměněné podobě (Nápověda → Licence…).<br><br>", ". Freeware – free to use and redistribute unmodified (Help → Licenses…).<br><br>"},
                 {"Čtení souborů zajišťuje knihovna <b>MPXJ</b> (https://www.mpxj.org, licence LGPL 2.1+). ", "Files are read by the <b>MPXJ</b> library (https://www.mpxj.org, LGPL 2.1+). "},
                 {"Licence všech knihoven třetích stran: Nápověda → Licence… (a složka <b>licenses</b> vedle programu).<br>", "Licenses of all third-party libraries: Help → Licenses… (and the <b>licenses</b> folder next to the program).<br>"},

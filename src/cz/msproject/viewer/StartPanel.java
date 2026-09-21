@@ -45,7 +45,7 @@ final class StartPanel extends JPanel {
         logo.setForeground(Icons.DARK);
         logo.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.add(logo);
-        JLabel sub = new JLabel(Str.t("Prohlížeč souborů Microsoft Project – MPP, MPT, XML, MPX, MPD. Pouze pro čtení."));
+        JLabel sub = new JLabel(Str.t("Prohlížeč dokumentů MS Project – MPP, MPT, XML, MPX, MPD. Pouze pro čtení."));
         sub.setFont(Theme.BASE);
         sub.setForeground(Theme.MUTED);
         sub.setBorder(BorderFactory.createEmptyBorder(6, 0, 18, 0));

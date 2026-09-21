@@ -1,9 +1,9 @@
 # M3K Project View
 
-Verze 0.4.0 · Autor: M3KSoft.cz · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
+Verze 0.4.1 · Autor: M3KSoft.cz · Vizuální styl: oranžová `#FF790A` na antracitové `#111115`
 (návrh v `Codex\2026-09-15\ko\outputs\M3K-Project-View`)
 
-Prohlížeč souborů Microsoft Project pro Windows – **pouze pro čtení**, bez nutnosti
+Prohlížeč dokumentů MS Project pro Windows – **pouze pro čtení**, bez nutnosti
 instalovat Microsoft Project nebo Javu (běhové prostředí je součástí balíčku).
 
 ## Co umí
@@ -92,7 +92,7 @@ instalovat Microsoft Project nebo Javu (běhové prostředí je součástí bal�
 
 ## Instalace
 
-Spusťte `dist\M3K-Project-View-0.4.0-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
+Spusťte `dist\M3K-Project-View-0.4.1-Setup.exe` (Windows 10/11, 64 bit). Instaluje se
 jen pro aktuálního uživatele do `%LOCALAPPDATA%\Programs\M3K Project View` – bez práv
 správce a bez výzvy UAC. Volitelně zástupce na ploše a přidružení souborů
 `.mpp`, `.mpt` a `.mpx` (zaškrtnuto předem jen tehdy, když v systému žádný program
@@ -100,18 +100,18 @@ pro `.mpp` není – Microsoft Project tedy nepřebije). Program se vždy objev�
 „Otevřít v programu“. Odinstalace je přes Nastavení → Aplikace; na konci se zeptá,
 zda smazat i uložené nastavení (nedávné soubory).
 
-Tichá instalace: `M3K-Project-View-0.4.0-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
+Tichá instalace: `M3K-Project-View-0.4.1-Setup.exe /VERYSILENT /TASKS=desktopicon,assoc`
 
 ### Hromadné nasazení (MSI)
 
-Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.4.0.msi`
+Pro nasazení přes Intune, SCCM nebo zásady skupiny slouží `dist\M3K-Project-View-0.4.1.msi`
 (sestaví se příkazem `.\build.ps1 -Msi`). Instaluje se **pro všechny uživatele** do
 `C:\Program Files\M3K Project View`, takže vyžaduje práva správce – přesně tak, jak
 nasazovací nástroje pracují:
 
 ```powershell
-msiexec /i "M3K-Project-View-0.4.0.msi" /qn
-msiexec /x "M3K-Project-View-0.4.0.msi" /qn
+msiexec /i "M3K-Project-View-0.4.1.msi" /qn
+msiexec /x "M3K-Project-View-0.4.1.msi" /qn
 ```
 
 MSI vytvoří zástupce v nabídce Start a má stálý UpgradeCode, takže novější verze
@@ -129,7 +129,7 @@ a málo stahovaný soubor. Co s tím:
   značku „Mark of the Web“ a hláška se neobjeví. U již staženého souboru stačí pravý
   klik → Vlastnosti → **Odblokovat**.
 - Ověřit si integritu otiskem, který vzniká vedle instalátoru i ZIPu (`.sha256`):
-  `certutil -hashfile M3K-Project-View-0.4.0-Setup.exe SHA256` a porovnat řetězce.
+  `certutil -hashfile M3K-Project-View-0.4.1-Setup.exe SHA256` a porovnat řetězce.
 - Podepsat instalátor certifikátem – `build.ps1` to udělá sám, jakmile je nastavená
   proměnná `MSPV_CERT` (soubor .pfx, heslo v `MSPV_CERT_PASS`), `MSPV_CERT_THUMBPRINT`
   (certifikát v úložišti Windows, např. na HW tokenu) nebo `MSPV_SIGN_CMD` (vlastní
