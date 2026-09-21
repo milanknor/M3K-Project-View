@@ -789,7 +789,7 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         case IDM_LICENSE_DIR: { wchar_t exe[MAX_PATH] = {}; GetModuleFileNameW(nullptr, exe, MAX_PATH); ShellExecuteW(hwnd, nullptr, L"explorer.exe", (L"/select,\"" + std::wstring(exe) + L"\"").c_str(), nullptr, SW_SHOWNORMAL); return 0; }
         case IDM_ABOUT:
-            MessageBoxW(hwnd, (std::wstring(APP_TITLE) + L" " + APP_VERSION + L"\nAutor: " + APP_AUTHOR + L"\n\nNativní prohlížeč harmonogramů .mpp / .xml (Project 2007 a novější) pro kontrolu průběhu zakázek – bez Javy, bez instalace.\n"
+            MessageBoxW(hwnd, (std::wstring(APP_TITLE) + L" " + APP_VERSION + L"\nAutor: " + APP_AUTHOR + L"\n\nProhlížeč harmonogramů .mpp / .xml (Project 2007 a novější) pro kontrolu průběhu zakázek – funguje i bez instalace.\n"
                 L"Freeware pro soukromé i komerční použití (viz Nápověda → Licenční podmínky).\n"
                 L"Copyright (c) 2026 Milan Knor (M3K Soft).\n\n"
                 L"Soubory čte knihovna mppread.dll, licence GNU LGPL 2.1 nebo pozdější:\n"

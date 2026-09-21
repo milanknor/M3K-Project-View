@@ -1,4 +1,4 @@
-﻿M3K Project View (nativní verze) – licenční podmínky (freeware)
+﻿M3K Project View – licenční podmínky (freeware)
 Copyright (c) 2026 Milan Knor (M3K Soft)
 Poskytovatel: Milan Knor (značka M3K Soft), web: https://m3ksoft.cz
 
@@ -58,7 +58,7 @@ Poskytovatel: Milan Knor (značka M3K Soft), web: https://m3ksoft.cz
 
 ----------------------------------------------------------------------
 
-M3K Project View (native edition) – License Terms (freeware) – English summary; the Czech text above prevails.
+M3K Project View – License Terms (freeware) – English summary; the Czech text above prevails.
 Copyright (c) 2026 Milan Knor (M3K Soft)
 Licensor: Milan Knor (brand M3K Soft), website: https://m3ksoft.cz
 
