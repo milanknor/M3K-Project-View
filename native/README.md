@@ -1,4 +1,4 @@
-# M3K Project View 1.0.5 — prohlížeč MS Project (.mpp / .xml)
+# M3K Project View 1.0.6 — prohlížeč MS Project (.mpp / .xml)
 
 Autor: **M3K Soft** · Prohlížeč harmonogramů MS Project pro techniky, kteří kontrolují průběh zakázky.
 Čistě Win32/C++, jeden soubor `mppview.exe` (~0,8 MB), žádný runtime, funguje i bez instalace.
@@ -27,11 +27,12 @@ Vyžaduje MSVC Build Tools 2022.
 
 ```
 build.cmd            (out\mppview.exe + out\mppread.dll + out\mppdump.exe)
-build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.5-Setup.exe přes Inno Setup 6)
+build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.6-Setup.exe přes Inno Setup 6)
 ```
 
 ## Soubory a licence
-Program je **freeware** (© 2026 M3K Soft) pro soukromé i komerční použití, bez zveřejnění zdrojového kódu aplikace — viz `LICENSE.txt`.
+Program je **freeware** (© 2026 M3K Soft) pro soukromé i komerční použití, bez zveřejnění zdrojového kódu aplikace — viz `LICENSE.txt`
+(text je vložený i do `mppview.exe` a zobrazí se v Nápověda → Licenční podmínky, i když soubor ve složce chybí).
 Výjimkou je knihovna **mppread.dll** (čtení .mpp/.xml): je to port části knihovny **MPXJ** (Jon Iles, https://github.com/joniles/mpxj),
 proto je pod **GNU LGPL 2.1 nebo pozdější** (`COPYING.LIB`); původní copyright Packwood Software 2002–2022, seznam převzatých souborů a záznam změn je v hlavičce `mpp.h`. Aby to šlo s uzavřenou aplikací dohromady:
 - čtečka je samostatná DLL, kterou aplikace načítá dynamicky z vlastní složky → uživatel ji může nahradit upravenou verzí,

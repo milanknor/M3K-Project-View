@@ -622,6 +622,28 @@ static void deleteView() {
     d.onCmd = [&](int id, int, HWND) { if (id == IDOK) { int i = (int)SendMessage(c, CB_GETCURSEL, 0, 0); if (i >= 0 && i < (int)g_views.size()) g_views.erase(g_views.begin() + i); storeViews(); rebuildViewsMenu(); d.done = true; } else if (id == IDCANCEL) d.done = true; };
     dlgRun(d);
 }
+// Licenční podmínky jsou vložené do exe (mppview.rc: LICENSE RCDATA), aby šly zobrazit i bez souboru ve složce programu.
+static std::wstring embeddedLicense() {
+    HRSRC r = FindResourceW(nullptr, L"LICENSE", RT_RCDATA); HGLOBAL g = r ? LoadResource(nullptr, r) : nullptr;
+    const unsigned char* p = g ? (const unsigned char*)LockResource(g) : nullptr; int n = p ? (int)SizeofResource(nullptr, r) : 0;
+    if (n >= 3 && p[0] == 0xEF && p[1] == 0xBB && p[2] == 0xBF) { p += 3; n -= 3; }
+    int wn = n > 0 ? MultiByteToWideChar(CP_UTF8, 0, (const char*)p, n, nullptr, 0) : 0;
+    std::wstring w((size_t)imax(0, wn), L' '); if (wn > 0) MultiByteToWideChar(CP_UTF8, 0, (const char*)p, n, &w[0], wn);
+    std::wstring s; for (wchar_t c : w) { if (c == L'\r') continue; if (c == L'\n') s += L'\r'; s += c; } // EDIT láme řádky jen na CRLF
+    return s;
+}
+static void licenseDialog() {
+    Dlg d; dlgCreate(d, L"Licenční podmínky", 760, 560, true);
+    HWND e = dlgCtl(d.h, L"EDIT", embeddedLicense().c_str(), WS_TABSTOP | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL, 12, 12, 736, 500, 100, WS_EX_CLIENTEDGE);
+    SendMessage(e, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(S(8), S(8)));
+    if (g_dark) SetWindowTheme(e, L"DarkMode_Explorer", nullptr);
+    HWND b = dlgButton(d.h, L"Zavřít", 660, 524, 88, IDCANCEL, true);
+    d.onSize = [&](int w, int h) { MoveWindow(e, S(12), S(12), w - S(24), h - S(60), TRUE); MoveWindow(b, w - S(100), h - S(36), S(88), S(24), TRUE); };
+    d.onCmd = [&](int id, int, HWND) { if (id == IDCANCEL) d.done = true; };
+    RECT rc; GetClientRect(d.h, &rc); d.onSize(rc.right, rc.bottom);
+    SetFocus(e);
+    dlgRun(d);
+}
 static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     switch (msg) {
     case WM_CREATE: {
@@ -780,16 +802,10 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         case IDM_VIEW_DELETE: deleteView(); return 0;
         case IDM_COLS_RESET: g_colWidths.clear(); setVisibleColumns(DEFAULT_COLS); fillListItems(); return 0;
         case IDM_COLS_FIT: autoFitColumns(); return 0;
-        case IDM_LICENSE: {
-            wchar_t exe[MAX_PATH] = {}; GetModuleFileNameW(nullptr, exe, MAX_PATH);
-            std::wstring dir = exe; dir = dir.substr(0, dir.find_last_of(L"\\/") + 1);
-            if (GetFileAttributesW((dir + L"LICENSE.txt").c_str()) != INVALID_FILE_ATTRIBUTES) ShellExecuteW(hwnd, L"open", (dir + L"LICENSE.txt").c_str(), nullptr, dir.c_str(), SW_SHOWNORMAL);
-            else MessageBoxW(hwnd, L"Soubor LICENSE.txt chybí ve složce programu.\n\nProgram je freeware (© 2026 M3K Soft) pro soukromé i komerční použití. Knihovna mppread.dll je pod GNU LGPL 2.1 (zdroje: mppread-src.zip).", APP_TITLE, MB_ICONINFORMATION);
-            return 0;
-        }
+        case IDM_LICENSE: licenseDialog(); return 0;
         case IDM_LICENSE_DIR: { wchar_t exe[MAX_PATH] = {}; GetModuleFileNameW(nullptr, exe, MAX_PATH); ShellExecuteW(hwnd, nullptr, L"explorer.exe", (L"/select,\"" + std::wstring(exe) + L"\"").c_str(), nullptr, SW_SHOWNORMAL); return 0; }
-        case IDM_ABOUT:
-            MessageBoxW(hwnd, (std::wstring(APP_TITLE) + L" " + APP_VERSION + L"\nAutor: " + APP_AUTHOR + L"\n\nProhlížeč harmonogramů .mpp / .xml (Project 2007 a novější) pro kontrolu průběhu zakázek – funguje i bez instalace.\n"
+        case IDM_ABOUT: {
+            std::wstring text = (std::wstring(APP_TITLE) + L" " + APP_VERSION + L"\nAutor: " + APP_AUTHOR + L"\n\nProhlížeč harmonogramů .mpp / .xml (Project 2007 a novější) pro kontrolu průběhu zakázek – funguje i bez instalace.\n"
                 L"Freeware pro soukromé i komerční použití (viz Nápověda → Licenční podmínky).\n"
                 L"Copyright (c) 2026 Milan Knor (M3K Soft).\n\n"
                 L"Soubory čte knihovna mppread.dll, licence GNU LGPL 2.1 nebo pozdější:\n"
@@ -798,8 +814,11 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 L"Zdrojový kód knihovny je přiložen (mppread-src.zip), knihovnu lze nahradit vlastní verzí.\n\n"
                 L"Ctrl+O otevřít · F5 znovu načíst · Ctrl+F hledat · Ctrl+Shift+F rozšířený filtr · pravé tlačítko na hlavičku = sloupce · klik na hlavičku = řazení\n"
                 L"dvojklik / mezerník / +/- rozbalit · dvojklik na Předchůdce = skok · pravé tlačítko na úkol = vazby · Ctrl+G zobrazit v diagramu\n"
-                L"Ctrl+kolečko lupa · Shift+kolečko posun · Ctrl+T dnešek · Ctrl+0 celý projekt · F4 detail · Ctrl+E CSV · Ctrl+Shift+S PDF · Ctrl+P tisk · Ctrl+C kopírovat").c_str(), APP_TITLE, MB_ICONINFORMATION);
+                L"Ctrl+kolečko lupa · Shift+kolečko posun · Ctrl+T dnešek · Ctrl+0 celý projekt · F4 detail · Ctrl+E CSV · Ctrl+Shift+S PDF · Ctrl+P tisk · Ctrl+C kopírovat");
+            MSGBOXPARAMSW mb = { sizeof(mb), hwnd, g_inst, text.c_str(), APP_TITLE, MB_OK | MB_USERICON, MAKEINTRESOURCEW(1) }; // ikona 1 = logo programu
+            MessageBoxIndirectW(&mb);
             return 0;
+        }
         }
         break;
     }
