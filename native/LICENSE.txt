@@ -1,6 +1,6 @@
 ﻿M3K Project View (nativní verze) – licenční podmínky (freeware)
 Copyright (c) 2026 Milan Knor (M3K Soft)
-Poskytovatel: Milan Knor, podnikající fyzická osoba (značka M3K Soft), web: https://m3ksoft.cz
+Poskytovatel: Milan Knor (značka M3K Soft), web: https://m3ksoft.cz
 
 1. Program M3K Project View („Program“) tvoří aplikace mppview.exe (vlastní dílo poskytovatele)
    a samostatně licencované součásti uvedené v bodě 3. Program je poskytován zdarma
@@ -60,7 +60,7 @@ Poskytovatel: Milan Knor, podnikající fyzická osoba (značka M3K Soft), web: 
 
 M3K Project View (native edition) – License Terms (freeware) – English summary; the Czech text above prevails.
 Copyright (c) 2026 Milan Knor (M3K Soft)
-Licensor: Milan Knor, self-employed natural person (brand M3K Soft), website: https://m3ksoft.cz
+Licensor: Milan Knor (brand M3K Soft), website: https://m3ksoft.cz
 
 The Program consists of the application mppview.exe (own work of the licensor) and the
 separately licensed components listed below. It is free of charge for private and
