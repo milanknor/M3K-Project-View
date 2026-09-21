@@ -1,4 +1,4 @@
-# M3K Project View 1.0.1 (nativní C++) — prohlížeč MS Project (.mpp / .xml)
+# M3K Project View 1.0.2 (nativní C++) — prohlížeč MS Project (.mpp / .xml)
 
 Autor: **M3K Soft** · Prohlížeč harmonogramů MS Project pro techniky, kteří kontrolují průběh zakázky.
 Čistě Win32/C++, jeden soubor `mppview.exe` (~0,8 MB), žádný runtime, žádná Java, funguje i bez instalace.
@@ -28,7 +28,7 @@ Vyžaduje MSVC Build Tools 2022.
 
 ```
 build.cmd            (out\mppview.exe + out\mppread.dll + out\mppdump.exe)
-build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.1-Setup.exe přes Inno Setup 6)
+build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.2-Setup.exe přes Inno Setup 6)
 ```
 
 ## Soubory a licence
