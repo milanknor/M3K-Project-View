@@ -28,6 +28,7 @@ static int openImpl(const wchar_t* path, uint8_t** data, size_t* size, wchar_t* 
 // Zachytí i pád (např. přístup mimo paměť u poškozeného souboru), aby nespadla celá aplikace.
 static int openGuarded(const wchar_t* path, uint8_t** data, size_t* size, wchar_t* err, int errLen) {
     __try { return openImpl(path, data, size, err, errLen); }
+#pragma warning(suppress: 6320) // záměrně zachytí jakoukoli výjimku, aby poškozený soubor neshodil aplikaci
     __except (EXCEPTION_EXECUTE_HANDLER) {
         if (err && errLen > 0) wcsncpy_s(err, (size_t)errLen, L"Soubor se nepodařilo přečíst (vnitřní chyba čtečky – soubor je nejspíš poškozený).", _TRUNCATE);
         return 3;
