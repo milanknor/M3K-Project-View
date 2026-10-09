@@ -18,6 +18,8 @@
 //   2026-09-21  převod vybraných částí z Javy do C++ (čtení MPP12/MPP14), vlastní datový model (model.h),
 //               zjednodušení na potřeby prohlížeče; dopočet kritičnosti ručních odhadovaných úkolů;
 //               jednotky a měna podle MS Project; rozvinutí výjimek kalendáře na dny (expandCalendar).
+//   2026-10-09  úpravy podle analýzy kódu MSVC: kontrola výsledku swscanf (mspdi.h, xmlClock),
+//               potlačení varování u záměrného zachycení pádu čtečky (mppread.cpp).
 // Úpravy: Copyright (c) 2026 Milan Knor (M3K Soft).
 // Čte: vlastnosti projektu, úkoly (hierarchie, termíny, doby, %, milníky, směrné plány 0-10, rezervy, priorita, typ, náklady, práce,
 // vlastní pole s aliasy, poznámky), vazby, zdroje a přiřazení, kalendáře (pracovní dny + výjimky).

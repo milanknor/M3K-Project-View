@@ -155,6 +155,7 @@ static HBITMAP renderPageBitmap(int w, int h, int dpi, std::function<void(HDC, R
     HDC sdc = GetDC(nullptr); HDC mem = CreateCompatibleDC(sdc);
     BITMAPINFO bi = {}; bi.bmiHeader.biSize = sizeof(bi.bmiHeader); bi.bmiHeader.biWidth = w; bi.bmiHeader.biHeight = -h; bi.bmiHeader.biPlanes = 1; bi.bmiHeader.biBitCount = 24; bi.bmiHeader.biCompression = BI_RGB;
     void* bits = nullptr; HBITMAP bmp = CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
+    if (!bmp) { DeleteDC(mem); ReleaseDC(nullptr, sdc); return nullptr; } // málo paměti: volající ohlásí chybu exportu
     HGDIOBJ old = SelectObject(mem, bmp);
     RECT full = { 0, 0, w, h }; FillRect(mem, &full, (HBRUSH)GetStockObject(WHITE_BRUSH));
     // GDI vykreslí v logických px; renderReport si DPI čte z DC (obrazovkové) - přizpůsobíme přes SetWindowExtEx/SetViewportExtEx
@@ -164,14 +165,16 @@ static HBITMAP renderPageBitmap(int w, int h, int dpi, std::function<void(HDC, R
     SelectObject(mem, old); DeleteDC(mem); ReleaseDC(nullptr, sdc);
     return bmp;
 }
+// Prázdný výsledek = převod se nepovedl (málo paměti); writePdf to ohlásí jako chybu.
 static std::string pngBytes(HBITMAP bmp) {
-    IStream* st = nullptr; CreateStreamOnHGlobal(nullptr, TRUE, &st);
-    Gdiplus::Bitmap gb(bmp, nullptr); CLSID clsid; std::string out;
-    if (st && pngEncoderClsid(&clsid) == 0 && gb.Save(st, &clsid, nullptr) == Gdiplus::Ok) {
-        HGLOBAL hg = nullptr; GetHGlobalFromStream(st, &hg); STATSTG ss; st->Stat(&ss, STATFLAG_NONAME);
-        const char* p = (const char*)GlobalLock(hg); out.assign(p, (size_t)ss.cbSize.QuadPart); GlobalUnlock(hg);
+    IStream* st = nullptr; std::string out;
+    if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &st)) || !st) return out;
+    Gdiplus::Bitmap gb(bmp, nullptr); CLSID clsid; HGLOBAL hg = nullptr; STATSTG ss = {};
+    if (pngEncoderClsid(&clsid) == 0 && gb.Save(st, &clsid, nullptr) == Gdiplus::Ok
+        && SUCCEEDED(GetHGlobalFromStream(st, &hg)) && SUCCEEDED(st->Stat(&ss, STATFLAG_NONAME))) {
+        if (const char* p = (const char*)GlobalLock(hg)) { out.assign(p, (size_t)ss.cbSize.QuadPart); GlobalUnlock(hg); }
     }
-    if (st) st->Release();
+    st->Release();
     return out;
 }
 static bool exportPng(const wchar_t* path = nullptr) {
@@ -207,6 +210,7 @@ static bool writePdf(const wchar_t* path, int pages, double wpt, double hpt, std
         std::string png = pngBytes(bmp); DeleteObject(bmp);
         std::string idat; int colorType = -1;
         for (size_t p = 8; p + 8 <= png.size();) { uint32_t len = ((uint8_t)png[p] << 24) | ((uint8_t)png[p + 1] << 16) | ((uint8_t)png[p + 2] << 8) | (uint8_t)png[p + 3]; std::string type = png.substr(p + 4, 4); if (type == "IHDR" && len >= 13) colorType = (uint8_t)png[p + 8 + 9]; if (type == "IDAT") idat += png.substr(p + 8, len); p += 12 + len; }
+        if (idat.empty() || colorType < 0) { fclose(f); return false; } // stránku se nepodařilo převést do PNG
         int po = 4 + i * 3, co = po + 1, io = po + 2;
         offs.push_back(tell()); puts_(std::to_string(po) + " 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " + wb + " " + hb + "] /Contents " + std::to_string(co) + " 0 R /Resources << /XObject << /Im" + std::to_string(i) + " " + std::to_string(io) + " 0 R >> >> >>\nendobj\n");
         std::string content = std::string("q ") + wb + " 0 0 " + hb + " 0 0 cm /Im" + std::to_string(i) + " Do Q\n";

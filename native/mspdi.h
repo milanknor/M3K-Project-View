@@ -65,7 +65,7 @@ inline int xmlInt(const std::wstring& s) { return _wtoi(s.c_str()); }
 inline double xmlDbl(const std::wstring& s) { return _wtof(s.c_str()); }
 inline double xmlCur(const std::wstring& s) { return _wtof(s.c_str()) / 100.0; } // MSPDI ukládá měnu v setinách (jako MPXJ parseCurrency)
 inline bool xmlBool(const std::wstring& s) { return s == L"1" || s == L"true"; }
-inline int xmlClock(const std::wstring& s) { int hh = 0, mm = 0; swscanf(s.c_str(), L"%d:%d", &hh, &mm); return hh * 60 + mm; }
+inline int xmlClock(const std::wstring& s) { int hh = 0, mm = 0; if (swscanf(s.c_str(), L"%d:%d", &hh, &mm) < 1) return 0; return hh * 60 + mm; }
 
 inline Project readMspdi(const std::wstring& path) {
     Project p; p.mppType = 0; p.format = L"XML (MSPDI)"; p.appName = L"Microsoft Project XML";

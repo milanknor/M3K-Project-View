@@ -828,7 +828,7 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-int WINAPI wWinMain(HINSTANCE inst, HINSTANCE, LPWSTR, int show) {
+int WINAPI wWinMain(_In_ HINSTANCE inst, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int show) {
     g_inst = inst;
     typedef BOOL(WINAPI* PSetCtx)(HANDLE);
     if (HMODULE u = GetModuleHandleW(L"user32.dll")) if (PSetCtx f = (PSetCtx)GetProcAddress(u, "SetProcessDpiAwarenessContext")) f((HANDLE)-4);

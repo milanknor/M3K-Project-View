@@ -228,7 +228,11 @@ static bool openDialogPath(wchar_t* buf, const wchar_t* title) {
 static void clipboardText(const std::wstring& s) {
     if (!OpenClipboard(g_main)) return;
     EmptyClipboard(); HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, (s.size() + 1) * 2);
-    if (h) { memcpy(GlobalLock(h), s.c_str(), (s.size() + 1) * 2); GlobalUnlock(h); SetClipboardData(CF_UNICODETEXT, h); }
+    if (h) { // bez paměti nic nezkopíruje, ale nespadne; paměť uvolní, když ji schránka nepřevezme
+        void* dst = GlobalLock(h);
+        if (dst) { memcpy(dst, s.c_str(), (s.size() + 1) * 2); GlobalUnlock(h); }
+        if (!dst || !SetClipboardData(CF_UNICODETEXT, h)) GlobalFree(h);
+    }
     CloseClipboard();
 }
 static void writeUtf8(const wchar_t* path, const std::wstring& content, bool bom = true) {
