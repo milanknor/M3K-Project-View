@@ -1,0 +1,29 @@
+# Kontrola kódu: přeloží native/ na čistém Windows a pustí analýzu kódu MSVC (/analyze).
+# Nálezy se ukážou u řádků v pull requestu a v záložce Actions. Chyba překladu kontrolu shodí,
+# varování analýzy zatím jen hlásí.
+name: Kontrola kódu
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  msvc-analyze:
+    name: Překlad a analýza MSVC
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Zapnout hlášení nálezů u řádků kódu
+        run: echo "::add-matcher::.github/msvc-matcher.json"
+
+      - name: Překlad native/ s /analyze
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do set "VS=%%i"
+          call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul
+          rem /analyze:external- a /external:* = neanalyzovat hlavičky Windows SDK, /FC = plné cesty pro hlášení u řádků
+          set "CL=/analyze /analyze:external- /external:anglebrackets /external:W0 /FC"
+          call native\build.cmd
