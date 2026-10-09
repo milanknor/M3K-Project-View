@@ -14,7 +14,7 @@ jobs:
     name: Překlad a analýza MSVC
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Zapnout hlášení nálezů u řádků kódu
         run: echo "::add-matcher::.github/msvc-matcher.json"
