@@ -34,7 +34,7 @@ static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
 static const wchar_t* APP_TITLE = L"M3K Project View";
 static const wchar_t* APP_AUTHOR = L"Milan Knor (M3K Soft), https://m3ksoft.cz";
-static const wchar_t* APP_VERSION = L"1.0.6";
+static const wchar_t* APP_VERSION = L"1.0.7";
 
 // ---------------- globální stav ----------------
 static HINSTANCE g_inst;
