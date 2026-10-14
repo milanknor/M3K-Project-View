@@ -1,4 +1,4 @@
-# M3K Project View 1.0.8 — prohlížeč MS Project (.mpp / .xml)
+# M3K Project View 1.0.9 — prohlížeč MS Project (.mpp / .xml)
 
 Autor: **M3K Soft** · Prohlížeč harmonogramů MS Project pro techniky, kteří kontrolují průběh zakázky.
 Čistě Win32/C++, jeden soubor `mppview.exe` (~0,8 MB), žádný runtime, funguje i bez instalace.
@@ -27,7 +27,8 @@ Vyžaduje MSVC Build Tools 2022.
 
 ```
 build.cmd            (out\mppview.exe + out\mppread.dll + out\mppdump.exe)
-build.cmd setup      (navíc out\mppread-src.zip a instalátor out\M3K-Project-View-1.0.8-Setup.exe přes Inno Setup 6)
+build.cmd setup      (navíc out\mppread-src.zip, instalátor out\M3K-Project-View-1.0.9-Setup.exe přes Inno Setup 6
+                      a out\M3K-Project-View-1.0.9.msi přes WiX Toolset 5.0.2, je-li nainstalovaný: dotnet tool install --global wix --version 5.0.2)
 ```
 
 ## Soubory a licence
@@ -56,6 +57,9 @@ proto je pod **GNU LGPL 2.1 nebo pozdější** (`COPYING.LIB`); původní copyri
 - Ověřeno: 2 340 náhodně poškozených souborů bez pádu a zamrznutí; výstup čtečky nad 757 soubory MPXJ (přímo i přes DLL) je bajt po bajtu shodný s verzí 1.0.2.
 - Kontrola kódu na GitHubu (`.github/workflows/kontrola.yml`): každý pull request a push do `main` přeloží `native/` s analýzou kódu MSVC (`/analyze`); od verze 1.0.7 bez varování.
 - CodeQL (`codeql.yml`, sada security-extended) a Trivy (`bezpecnost.yml`): verze 1.0.8 opravuje přetečení bufferu u cesty k exportu delší než 260 znaků (dávkový režim); od 1.0.8 bez otevřených nálezů.
+- Vydání sestavuje GitHub (`vydani.yml`) po push značky `native-vX.Y.Z`: jen z commitu v chráněné `main` s prošlými kontrolami, s atestací původu (`gh attestation verify <soubor> --repo milanknor/M3K-Project-View`); bez digitálního podpisu.
+- MSI (`mppview.wxs`, od 1.0.9): instalace pro všechny uživatele do Program Files pro Intune / Configuration Manager / GPO
+  (`msiexec /i M3K-Project-View-X.Y.Z.msi /qn`); výchozí program pro .mpp nemění, přidá „Otevřít v programu“ a místní nabídku.
 
 ## Ověření (stav k 21. 9. 2026)
 - Čtečka: celá testovací sada MPXJ (756 souborů) — **489/489** podporovaných (MPP12, MPP14, XML) se načte bez pádu; 267 odmítnutých jsou jen MPP8/9.

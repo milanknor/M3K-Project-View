@@ -28,4 +28,15 @@ if /i "%1"=="setup" (
   if errorlevel 1 exit /b 1
   dir out\M3K-Project-View-*-Setup.exe out\mppread-src.zip | findstr /i "exe zip"
 )
+if /i not "%1"=="setup" exit /b 0
+rem MSI pro firemni nasazeni (WiX Toolset 5.0.2, licence MS-RL); bez WiX se preskoci
+for /f "tokens=2 delims==" %%v in ('findstr /b "AppVersion=" mppview.iss') do set "VER=%%v"
+where wix >nul 2>&1 || (echo WiX nenalezen - MSI se nesestavi: dotnet tool install --global wix --version 5.0.2 & exit /b 0)
+wix build mppview.wxs -arch x64 -d Version=%VER% -bindpath out -bindpath . -o out\M3K-Project-View-%VER%.msi
+if errorlevel 1 exit /b 1
+rem ICE38/43/57 = plane poplachy u zastupce v nabidce Start pri instalaci pro vsechny uzivatele
+wix msi validate -sice ICE38 -sice ICE43 -sice ICE57 out\M3K-Project-View-%VER%.msi
+if errorlevel 1 exit /b 1
+del out\M3K-Project-View-%VER%.wixpdb >nul 2>&1
+dir out\M3K-Project-View-%VER%.msi | findstr /i "msi"
 exit /b 0

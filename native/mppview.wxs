@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSI instalátor M3K Project View pro nasazení ve firmách (Intune, Configuration Manager, zásady skupiny):
+  instalace pro všechny uživatele do Program Files, zástupce v nabídce Start.
+  Sestavení: WiX Toolset 5.0.2 (licence MS-RL), viz build.cmd setup:
+    wix build mppview.wxs -arch x64 -d Version=X.Y.Z -bindpath out -bindpath . -o out\M3K-Project-View-X.Y.Z.msi
+  Výchozí program pro .mpp NEMĚNÍ (ve firmě může být Microsoft Project) – jen se přidá do nabídky
+  „Otevřít v programu“ a do místní nabídky Průzkumníka.
+  UpgradeCode se nesmí měnit – podle něj nová verze nahradí starou.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="M3K Project View" Manufacturer="Milan Knor (M3K Soft)" Version="$(Version)"
+           UpgradeCode="{089A0B2F-0FB3-4537-A20E-4289C7742023}" Scope="perMachine" Compressed="yes"
+           Language="1029" Codepage="1250">
+    <MajorUpgrade DowngradeErrorMessage="Je nainstalovana novejsi verze M3K Project View." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="mppview.ico" SourceFile="mppview.ico" />
+    <Property Id="ARPPRODUCTICON" Value="mppview.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://m3ksoft.cz" />
+    <Property Id="ARPHELPLINK" Value="https://m3ksoft.cz" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="M3KSoftDir" Name="M3K Soft">
+        <Directory Id="INSTALLFOLDER" Name="M3K Project View" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="MenuDir" Name="M3K Soft" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="M3K Project View">
+      <Component Directory="INSTALLFOLDER">
+        <File Id="mppview.exe" Source="mppview.exe" KeyPath="yes" />
+      </Component>
+      <Component Directory="INSTALLFOLDER"><File Source="mppread.dll" /></Component>
+      <Component Directory="INSTALLFOLDER"><File Source="mppread-src.zip" /></Component>
+      <Component Directory="INSTALLFOLDER"><File Source="LICENSE.txt" /></Component>
+      <Component Directory="INSTALLFOLDER"><File Source="COPYING.LIB" /></Component>
+      <Component Directory="INSTALLFOLDER"><File Source="LICENSE-MIT.txt" /></Component>
+      <Component Directory="INSTALLFOLDER"><File Source="README.md" /></Component>
+
+      <Component Id="StartMenu" Directory="MenuDir">
+        <Shortcut Id="MenuShortcut" Name="M3K Project View" Target="[INSTALLFOLDER]mppview.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RemoveFolder Id="RemoveMenuDir" On="uninstall" />
+        <RegistryValue Root="HKLM" Key="Software\M3K Soft\M3K Project View" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="Associations" Directory="INSTALLFOLDER">
+        <RegistryValue Root="HKLM" Key="Software\M3K Soft\M3K Project View" Name="Associations" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryKey Root="HKLM" Key="Software\Classes\MppView.Project" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="Harmonogram MS Project" />
+          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLFOLDER]mppview.exe&quot;,1" />
+          <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[INSTALLFOLDER]mppview.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
+        <RegistryValue Root="HKLM" Key="Software\Classes\.mpp\OpenWithProgids" Name="MppView.Project" Type="string" Value="" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\.xml\OpenWithProgids" Name="MppView.Project" Type="string" Value="" />
+        <RegistryKey Root="HKLM" Key="Software\Classes\SystemFileAssociations\.mpp\shell\MppView" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="Otevrit v M3K Project View" />
+          <RegistryValue Name="Icon" Type="string" Value="&quot;[INSTALLFOLDER]mppview.exe&quot;,0" />
+          <RegistryValue Key="command" Type="string" Value="&quot;[INSTALLFOLDER]mppview.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
+      </Component>
+    </Feature>
+  </Package>
+</Wix>
