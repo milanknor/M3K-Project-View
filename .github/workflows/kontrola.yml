@@ -1,6 +1,6 @@
 # Kontrola kódu: přeloží native/ na čistém Windows a pustí analýzu kódu MSVC (/analyze).
 # Nálezy se ukážou u řádků v pull requestu a v záložce Actions. Chyba překladu kontrolu shodí,
-# varování analýzy zatím jen hlásí.
+# varování analýzy zatím jen hlásí. Navíc ověří, že program nepoužívá síťové knihovny Windows.
 name: Kontrola kódu
 
 on:
@@ -9,12 +9,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read          # workflow nic nezapisuje a nepotřebuje žádná tajemství
+
 jobs:
   msvc-analyze:
     name: Překlad a analýza MSVC
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Zapnout hlášení nálezů u řádků kódu
         run: echo "::add-matcher::.github/msvc-matcher.json"
@@ -27,3 +32,19 @@ jobs:
           rem /analyze:external- a /external:* = neanalyzovat hlavičky Windows SDK, /FC = plné cesty pro hlášení u řádků
           set "CL=/analyze /analyze:external- /external:anglebrackets /external:W0 /FC"
           call native\build.cmd
+
+      - name: Program nepoužívá síť
+        shell: pwsh
+        run: |
+          # Program se nesmí připojovat k síti: v souborech programu nesmí být síťová knihovna Windows
+          # ani v importech, ani jako text (načtení až za běhu přes LoadLibrary podle jména).
+          # ponytail: hledá jen známé síťové DLL; síť přes COM objekty by tím neodhalila.
+          $sit = 'ws2_32','wsock32','mswsock','wininet','winhttp','urlmon','httpapi','webio','dnsapi','netapi32'
+          $nalez = @()
+          foreach ($n in 'mppview.exe','mppread.dll','mppdump.exe') {
+            $b = [IO.File]::ReadAllBytes("native/out/$n")
+            $a = [Text.Encoding]::ASCII.GetString($b).ToLower(); $u = [Text.Encoding]::Unicode.GetString($b).ToLower()
+            foreach ($s in $sit) { if ($a.Contains($s) -or $u.Contains($s)) { $nalez += "${n}: $s" } }
+          }
+          if ($nalez) { $nalez | ForEach-Object { "::error::Síťová knihovna v programu – $_" }; exit 1 }
+          "Bez síťových knihoven: mppview.exe, mppread.dll, mppdump.exe"

@@ -1,0 +1,2 @@
+# Výjimky pro Trivy. Ke každé napsat důvod a datum revize, např.:
+# CVE-2024-XXXXX – funkce není použita, revize 2027-01
