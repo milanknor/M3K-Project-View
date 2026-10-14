@@ -211,6 +211,13 @@ static bool askText(const wchar_t* title, const wchar_t* label, std::wstring& va
     SetFocus(e); SendMessage(e, EM_SETSEL, 0, -1);
     return dlgRun(d) == 1;
 }
+// Naplní buffer dialogu Uložit: zadanou cestu (dávkový režim) nebo navržený název souboru.
+// Zadanou cestu delší než MAX_PATH odmítne, navržený název zkrátí (dřív wcscpy mohl buffer přetéct).
+static bool fillPath(wchar_t (&buf)[MAX_PATH], const wchar_t* path, const std::wstring& suggested) {
+    if (path && wcslen(path) >= MAX_PATH) return false;
+    wcsncpy_s(buf, MAX_PATH, path ? path : suggested.c_str(), _TRUNCATE);
+    return true;
+}
 static bool saveDialog(wchar_t* buf, const wchar_t* filter, const wchar_t* defExt, const wchar_t* title) {
     OPENFILENAMEW ofn = { sizeof(ofn) };
     ofn.hwndOwner = g_main; ofn.lpstrFile = buf; ofn.nMaxFile = MAX_PATH; ofn.lpstrFilter = filter; ofn.lpstrDefExt = defExt; ofn.lpstrTitle = title;

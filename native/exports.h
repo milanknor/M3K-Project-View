@@ -19,7 +19,7 @@ static std::wstring rowsAsText(const std::vector<int>& rows, wchar_t sep, bool c
 }
 static bool exportCsv(const wchar_t* path = nullptr) {
     if (!g_loaded) return false;
-    wchar_t buf[MAX_PATH]; wcscpy(buf, path ? path : (baseName() + L".csv").c_str());
+    wchar_t buf[MAX_PATH]; if (!fillPath(buf, path, baseName() + L".csv")) return false;
     if (!path && !saveDialog(buf, L"CSV (oddělovač ;)\0*.csv\0", L"csv", L"Export tabulky do CSV (zobrazené řádky a sloupce)")) return false;
     try { writeUtf8(buf, rowsAsText(g_rows, L';', true)); } catch (const std::exception&) { if (!path) msgError(L"Soubor nelze zapsat."); return false; }
     return true;
@@ -101,7 +101,7 @@ struct Xlsx { // port XlsxWriter.java
 };
 static bool exportXlsx(const wchar_t* path = nullptr) {
     if (!g_loaded) return false;
-    wchar_t buf[MAX_PATH]; wcscpy(buf, path ? path : (baseName() + L".xlsx").c_str());
+    wchar_t buf[MAX_PATH]; if (!fillPath(buf, path, baseName() + L".xlsx")) return false;
     if (!path && !saveDialog(buf, L"Sešit Excel\0*.xlsx\0", L"xlsx", L"Export do Excelu (listy Úkoly, Zdroje, Přiřazení, Vytížení, Projekt)")) return false;
     try {
         Xlsx x(buf); const mpp::Project& p = g_prj;
@@ -179,7 +179,7 @@ static std::string pngBytes(HBITMAP bmp) {
 }
 static bool exportPng(const wchar_t* path = nullptr) {
     if (!g_loaded || g_rows.empty()) return false;
-    wchar_t buf[MAX_PATH]; wcscpy(buf, path ? path : (baseName() + L".png").c_str());
+    wchar_t buf[MAX_PATH]; if (!fillPath(buf, path, baseName() + L".png")) return false;
     if (!path && !saveDialog(buf, L"Obrázek PNG\0*.png\0", L"png", L"Export harmonogramu do PNG (zobrazené řádky, celý projekt)")) return false;
     int rows = imin((int)g_rows.size(), 4000);
     int w = 2400, h = 22 + 4 + 30 + rows * 18 + 34;
@@ -249,7 +249,7 @@ static bool exportPdf(const wchar_t* path = nullptr, bool a3 = false) {
         d.onCmd = [&](int id, int, HWND) { if (id == IDOK) { a3 = SendMessage(c, CB_GETCURSEL, 0, 0) == 1; d.result = 1; d.done = true; } else if (id == IDCANCEL) d.done = true; };
         if (dlgRun(d) != 1) return false;
     }
-    wchar_t buf[MAX_PATH]; wcscpy(buf, path ? path : (baseName() + L".pdf").c_str());
+    wchar_t buf[MAX_PATH]; if (!fillPath(buf, path, baseName() + L".pdf")) return false;
     if (!path && !saveDialog(buf, L"PDF\0*.pdf\0", L"pdf", L"Uložit harmonogram do PDF")) return false;
     double wpt = a3 ? 1190.55 : 841.89, hpt = a3 ? 841.89 : 595.28; int dpi = 150;
     int pw = (int)(wpt / 72 * dpi), ph = (int)(hpt / 72 * dpi);
