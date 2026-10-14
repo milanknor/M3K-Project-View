@@ -42,15 +42,6 @@ jobs:
           call "%VS%\VC\Auxiliary\Build\vcvars64.bat" >nul
           call native\build.cmd
 
-      - name: Diagnostika sledování překladu (dočasně)
-        if: always()
-        shell: pwsh
-        run: |
-          "tracer log: $env:CODEQL_TRACER_LOG"
-          if (Test-Path $env:CODEQL_TRACER_LOG) { Get-Content $env:CODEQL_TRACER_LOG -Tail 60 } else { "log neexistuje" }
-          Get-ChildItem $env:CODEQL_TRACER_DIAGNOSTICS_DIR -Recurse -ErrorAction SilentlyContinue | ForEach-Object { "--- $($_.FullName)"; if (-not $_.PSIsContainer) { Get-Content $_.FullName -TotalCount 30 } }
-          Get-ChildItem D:\a\_temp\codeql_databases -Recurse -Directory -ErrorAction SilentlyContinue | Select-Object -First 30 | ForEach-Object FullName
-
       - name: Analýza
         uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
