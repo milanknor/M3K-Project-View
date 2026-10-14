@@ -1,0 +1,11 @@
+# Hlídá nové verze akcí GitHub Actions (připnutých na hash) a otevírá na ně pull request.
+# Cooldown: aktualizace až týden po vydání – napadené verze bývají do té doby odhaleny a staženy.
+# Každý takový pull request před sloučením zkontrolovat.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

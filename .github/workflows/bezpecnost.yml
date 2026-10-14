@@ -1,0 +1,47 @@
+# Bezpečnostní kontrola Trivy: uniklá tajemství (hesla, klíče, tokeny) a známé zranitelnosti v knihovnách.
+# Trivy byl v březnu 2026 napaden (CVE-2026-33634, podvržené tagy trivy-action a binárka v0.69.4), proto
+# se nepoužívá trivy-action, ale pevná verze binárky ověřená otiskem SHA-256 zapsaným přímo tady.
+# Novou verzi Trivy je potřeba změnit ručně: TRIVY_VERSION + TRIVY_SHA256 ze souboru trivy_<verze>_checksums.txt.
+# U soukromého repozitáře bez GitHub Code Security nejde nahrát SARIF, výsledek je proto v logu a ve stavu kontroly.
+name: Bezpečnost (Trivy)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"   # každé pondělí: nové zranitelnosti i v nezměněném kódu
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy
+    runs-on: ubuntu-latest
+    env:
+      TRIVY_VERSION: "0.75.0"
+      TRIVY_SHA256: "c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalace Trivy (pevná verze, ověřený otisk)
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL -o trivy.tgz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          echo "${TRIVY_SHA256}  trivy.tgz" | sha256sum -c -
+          tar -xzf trivy.tgz trivy
+          ./trivy --version
+
+      - name: Trivy – kompletní přehled (jen hlásí)
+        run: |
+          "$RUNNER_TEMP/trivy" fs --scanners vuln,secret,misconfig --ignorefile .trivyignore \
+            --format table --exit-code 0 .
+
+      - name: Trivy – brána (HIGH / CRITICAL)
+        run: |
+          "$RUNNER_TEMP/trivy" fs --scanners vuln,secret --ignorefile .trivyignore --skip-db-update \
+            --severity HIGH,CRITICAL --ignore-unfixed --format table --exit-code 1 .
