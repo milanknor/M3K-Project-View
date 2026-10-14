@@ -138,7 +138,7 @@ static LRESULT CALLBACK TimelineProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
         int id = LOWORD(wp);
         if (id == 201 && HIWORD(wp) == CBN_SELCHANGE) rebuildTimeline(); else if (id == 202 || id == 203) rebuildTimeline();
         else if (id == 204 && g_loaded) {
-            wchar_t buf[MAX_PATH]; wcscpy(buf, (baseName() + L"-osa.png").c_str());
+            wchar_t buf[MAX_PATH]; fillPath(buf, nullptr, baseName() + L"-osa.png");
             if (saveDialog(buf, L"Obrázek PNG\0*.png\0", L"png", L"Uložit časovou osu do PNG")) {
                 int w = 2400; { HDC dc = GetDC(hwnd); layoutMsLabels(dc, w); ReleaseDC(hwnd, dc); }
                 int h = S(34) + g_tlLanes * S(40) + 16 + g_tlMsRows * S(22) + 40;
