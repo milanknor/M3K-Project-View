@@ -111,7 +111,26 @@ jobs:
           if (-not (Test-Path (Join-Path $cil "ISCC.exe"))) { "::error::ISCC.exe se nenainstaloval"; exit 1 }
           "Inno Setup $env:INNO_VERSION nainstalován, otisk ověřen."
 
-      - name: Sestavení programu a instalátoru
+      - name: Instalace WiX Toolset (pevná verze, ověřený otisk)
+        shell: pwsh
+        env:
+          WIX_VERSION: "5.0.2"   # licence MS-RL; WiX 6+ má licenci s poplatkem (OSMF)
+          WIX_SHA512: "z+fu1deTcaV+TRCo4+6HrJ48Sdnj+yeQjjMStTI3GW7NxFEPaknYCdxrf0qEvgdXrjYdjLnkZKCsNSqTTOo2OA=="
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP "wixpkg"; New-Item -ItemType Directory -Force $dir | Out-Null
+          $pkg = Join-Path $dir "wix.$env:WIX_VERSION.nupkg"
+          Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/wix/$env:WIX_VERSION/wix.$env:WIX_VERSION.nupkg" -OutFile $pkg
+          $h = [Convert]::ToBase64String([Security.Cryptography.SHA512]::Create().ComputeHash([IO.File]::ReadAllBytes($pkg)))
+          if ($h -ne $env:WIX_SHA512) { "::error::Otisk balíčku WiX nesedí: $h"; exit 1 }
+          # instalace jen z ověřeného balíčku (žádný jiný zdroj NuGet)
+          $cfg = Join-Path $dir "nuget.config"
+          Set-Content $cfg "<?xml version=`"1.0`" encoding=`"utf-8`"?><configuration><packageSources><clear /><add key=`"overeno`" value=`"$dir`" /></packageSources></configuration>"
+          dotnet tool install --global wix --version $env:WIX_VERSION --configfile $cfg
+          if ($LASTEXITCODE) { exit 1 }
+          Join-Path $env:USERPROFILE ".dotnet\tools" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+          "WiX $env:WIX_VERSION nainstalován, otisk ověřen."
+
+      - name: Sestavení programu a instalátorů (EXE a MSI)
         shell: cmd
         run: |
           for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath`) do set "VS=%%i"
@@ -136,7 +155,7 @@ jobs:
         run: |
           $ver = (Select-String -Path native/mppview.iss -Pattern '^AppVersion=(.+)$').Matches[0].Groups[1].Value.Trim()
           New-Item -ItemType Directory -Force vydani, program | Out-Null
-          Copy-Item "native/out/M3K-Project-View-$ver-Setup.exe" vydani/
+          Copy-Item "native/out/M3K-Project-View-$ver-Setup.exe", "native/out/M3K-Project-View-$ver.msi" vydani/
           Copy-Item native/out/mppread-src.zip "vydani/mppread-src-$ver.zip"
           Copy-Item native/out/mppview.exe, native/out/mppread.dll program/
           foreach ($f in Get-ChildItem vydani, program -File) {
@@ -150,6 +169,7 @@ jobs:
         with:
           subject-path: |
             vydani/*.exe
+            vydani/*.msi
             vydani/*.zip
             program/*.exe
             program/*.dll
