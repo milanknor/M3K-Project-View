@@ -1,0 +1,6 @@
+# Konfigurace CodeQL. security-extended = bezpečnostní dotazy včetně těch s nižší přesností.
+# Vlastní dotaz na únik dat po síti se nepoužívá: program nesmí síť používat vůbec a to přímo hlídá
+# krok „Program nepoužívá síť“ v kontrola.yml (žádná síťová knihovna Windows v souborech programu).
+name: "C++ security"
+queries:
+  - uses: security-extended
