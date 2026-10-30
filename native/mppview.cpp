@@ -535,14 +535,17 @@ static void setTab(int tab) {
 }
 static int g_detailTop = 0; // y horní hrany panelu detailu (kvůli tažení dělicí čáry)
 static const int DETAIL_GRIP = 6;
+static void layoutPanes();
+static const int TAB_H = 26, BAR_H = 32, SUM_H = 22; // záložky, lišta, souhrnný řádek (při 96 DPI)
+static int panesTop() { return S(TAB_H) + S(BAR_H) + S(SUM_H); }
 static void layout() {
     RECT rc; GetClientRect(g_main, &rc);
     SendMessage(g_status, WM_SIZE, 0, 0); RECT sr; GetWindowRect(g_status, &sr);
     int parts[3] = { S(460), S(900), -1 }; SendMessage(g_status, SB_SETPARTS, 3, (LPARAM)parts);
-    int tabH = S(26); MoveWindow(g_tabs, 0, 0, rc.right, tabH, TRUE);
+    int tabH = S(TAB_H); MoveWindow(g_tabs, 0, 0, rc.right, tabH, TRUE);
     int bottom = rc.bottom - (sr.bottom - sr.top);
     if (g_tab != 0) { if (g_panels[g_tab]) MoveWindow(g_panels[g_tab], 0, tabH, rc.right, bottom - tabH, TRUE); return; }
-    int barH = S(32), sumH = S(22);
+    int barH = S(BAR_H), sumH = S(SUM_H);
     // lišta: popisky podle šířky textu, hledací pole dostane zbylé místo (110–260 px)
     HDC dc = GetDC(g_main); HGDIOBJ of = SelectObject(dc, g_font);
     auto tw = [&](HWND c) { std::wstring s = ctlText(c); SIZE sz; GetTextExtentPoint32W(dc, s.c_str(), (int)s.size(), &sz); return (int)sz.cx; };
@@ -561,7 +564,14 @@ static void layout() {
         x += it.w + it.gapAfter;
     }
     MoveWindow(g_summary, S(8), tabH + barH + S(3), rc.right - S(16), sumH - S(4), TRUE);
-    int top = tabH + barH + sumH;
+    layoutPanes();
+    InvalidateRect(g_main, nullptr, TRUE);
+}
+// Tabulka, graf a detail pod lištou. Při tažení dělicích čar se volá samostatně: lišta a stavový řádek se nemění
+// a jejich přepočet trval ~30 ms na pohyb myši, takže Windows nestíhaly kreslit a mezi tabulkou a grafem zůstávaly staré pixely.
+static void layoutPanes() {
+    RECT rc; GetClientRect(g_main, &rc); RECT sr; GetWindowRect(g_status, &sr);
+    int bottom = rc.bottom - (sr.bottom - sr.top), top = panesTop();
     int detH = 0;
     if (g_detailVisible && g_loaded) { if (g_detailH <= 0) g_detailH = S(270); detH = imax(S(90), imin(g_detailH, bottom - top - S(120))); }
     int h = bottom - top - detH;
@@ -572,7 +582,6 @@ static void layout() {
     ShowWindow(g_detail, detH ? SW_SHOW : SW_HIDE);
     g_detailTop = top + h;
     if (detH) MoveWindow(g_detail, 0, top + h + S(DETAIL_GRIP), rc.right, detH - S(DETAIL_GRIP), TRUE);
-    InvalidateRect(g_main, nullptr, TRUE);
     RECT r; if (!g_rows.empty() && ListView_GetItemRect(g_list, 0, &r, LVIR_BOUNDS)) g_rowH = r.bottom - r.top;
     HWND hdr = ListView_GetHeader(g_list); if (hdr && GetWindowRect(hdr, &r)) g_headerH = r.bottom - r.top;
     updateScroll();
@@ -709,8 +718,15 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         return 0;
     }
     case WM_MOUSEMOVE:
-        if (g_dragSplit) { g_splitX = GET_X_LPARAM(lp); layout(); }
-        else if (g_dragDetail) { RECT rc, sr; GetClientRect(hwnd, &rc); GetWindowRect(g_status, &sr); g_detailH = imax(S(90), (int)rc.bottom - (sr.bottom - sr.top) - GET_Y_LPARAM(lp)); layout(); }
+        if (g_dragSplit || g_dragDetail) {
+            int oldSplit = g_splitX, oldDetH = g_detailH;
+            if (g_dragSplit) g_splitX = GET_X_LPARAM(lp);
+            else { RECT rc, sr; GetClientRect(hwnd, &rc); GetWindowRect(g_status, &sr); g_detailH = imax(S(90), (int)rc.bottom - (sr.bottom - sr.top) - GET_Y_LPARAM(lp)); }
+            if (g_splitX == oldSplit && g_detailH == oldDetH) return 0; // posun oken pod kurzorem pošle další WM_MOUSEMOVE se stejnou pozicí
+            layoutPanes();
+            // nakreslit hned, co posun odkryl – jinak při rychlém tažení Windows nestíhají kreslit a zůstávají staré pixely
+            RedrawWindow(hwnd, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN);
+        }
         return 0;
     case WM_LBUTTONUP: if (g_dragSplit || g_dragDetail) { g_dragSplit = g_dragDetail = false; ReleaseCapture(); } return 0;
     case WM_CONTEXTMENU: {
