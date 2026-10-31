@@ -18,7 +18,8 @@ static int openImpl(const wchar_t* path, uint8_t** data, size_t* size, wchar_t* 
         *data = m; *size = b.size();
         return 0;
     } catch (const std::exception& e) {
-        if (err && errLen > 0) { std::wstring w = mpp::ansiToWide(e.what(), CP_UTF8); wcsncpy_s(err, (size_t)errLen, w.c_str(), _TRUNCATE); }
+        // převod hlášení alokuje; při nedostatku paměti nesmí výjimka vylétnout z handleru (zachytil by ji až __except a objekt výjimky by unikl)
+        if (err && errLen > 0) { try { std::wstring w = mpp::ansiToWide(e.what(), CP_UTF8); wcsncpy_s(err, (size_t)errLen, w.c_str(), _TRUNCATE); } catch (...) { wcsncpy_s(err, (size_t)errLen, L"Nedostatek paměti.", _TRUNCATE); } }
         return 1;
     } catch (...) {
         if (err && errLen > 0) wcsncpy_s(err, (size_t)errLen, L"Neočekávaná chyba při čtení souboru.", _TRUNCATE);

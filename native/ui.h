@@ -34,7 +34,7 @@ static int imin(int a, int b) { return a < b ? a : b; }
 static int imax(int a, int b) { return a > b ? a : b; }
 static const wchar_t* APP_TITLE = L"M3K Project View";
 static const wchar_t* APP_AUTHOR = L"Milan Knor (M3K Soft), https://m3ksoft.cz";
-static const wchar_t* APP_VERSION = L"1.0.9";
+static const wchar_t* APP_VERSION = L"1.0.10";
 
 // ---------------- globální stav ----------------
 static HINSTANCE g_inst;
@@ -77,8 +77,10 @@ static void applyThemeColors() {
         RGB(255,121,10), RGB(190,80,0), RGB(230,80,80), RGB(160,30,30), RGB(200,200,200), RGB(110,110,120), RGB(240,240,240), RGB(90,90,100), RGB(255,90,90), RGB(160,160,170), RGB(100,170,255), RGB(255,90,90), RGB(100,170,255), RGB(45,45,55), RGB(24,24,30), RGB(255,170,60), RGB(80,200,120), RGB(120,40,40), RGB(255,180,180), RGB(50,45,35) };
 }
 static void drawText(HDC hdc, const std::wstring& s, RECT rc, UINT fmt = DT_CENTER) { DrawTextW(hdc, s.c_str(), (int)s.size(), &rc, fmt | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX); }
-static std::wstring lower(std::wstring s) { for (auto& c : s) c = (wchar_t)towlower(c); return s; }
-static int collate(const std::wstring& a, const std::wstring& b) { return CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE, a.c_str(), (int)a.size(), b.c_str(), (int)b.size(), nullptr, nullptr, 0) - 2; }
+// CharLowerBuffW: towlower v "C" locale převádí jen A–Z, takže „Úprava“ by hledání „úprava“ nenašlo
+static std::wstring lower(std::wstring s) { if (!s.empty()) CharLowerBuffW(&s[0], (DWORD)s.size()); return s; }
+// SORT_DIGITSASNUMBERS: WBS 1.2 před 1.10, „Etapa 2“ před „Etapa 10“
+static int collate(const std::wstring& a, const std::wstring& b) { return CompareStringEx(LOCALE_NAME_USER_DEFAULT, LINGUISTIC_IGNORECASE | SORT_DIGITSASNUMBERS,a.c_str(), (int)a.size(), b.c_str(), (int)b.size(), nullptr, nullptr, 0) - 2; }
 static std::wstring baseName() { std::wstring n = g_file.substr(g_file.find_last_of(L"\\/") + 1); size_t d = n.find_last_of(L'.'); return d == std::wstring::npos ? n : n.substr(0, d); }
 static std::wstring fileName(const std::wstring& p) { return p.substr(p.find_last_of(L"\\/") + 1); }
 static bool g_batch = false; // --csv/--png/...: žádná okna, jen exit kód

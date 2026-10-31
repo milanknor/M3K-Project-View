@@ -91,8 +91,8 @@ static void paintTimeline(HDC hdc, int width, int height, int top) {
         HBRUSH br = CreateSolidBrush(c); HPEN pn = CreatePen(PS_SOLID, 1, c); SelectObject(hdc, br); SelectObject(hdc, pn);
         RoundRect(hdc, a, yb, b, yb + LANE - 12, S(8), S(8));
         int pct = imax(0, imin(100, t.pctComplete));
-        if (pct > 0) { HBRUSH dk = CreateSolidBrush(RGB(GetRValue(c) * 3 / 4, GetGValue(c) * 3 / 4, GetBValue(c) * 3 / 4)); SelectObject(hdc, dk); RoundRect(hdc, a, yb, a + (int)std::lround((b - a) * pct / 100.0), yb + LANE - 12, S(8), S(8)); DeleteObject(dk); }
-        SelectObject(hdc, GetStockObject(NULL_BRUSH)); DeleteObject(br); DeleteObject(pn);
+        if (pct > 0) { HBRUSH dk = CreateSolidBrush(RGB(GetRValue(c) * 3 / 4, GetGValue(c) * 3 / 4, GetBValue(c) * 3 / 4)); SelectObject(hdc, dk); RoundRect(hdc, a, yb, a + (int)std::lround((b - a) * pct / 100.0), yb + LANE - 12, S(8), S(8)); SelectObject(hdc, br); DeleteObject(dk); }
+        SelectObject(hdc, GetStockObject(NULL_BRUSH)); SelectObject(hdc, pStrong); DeleteObject(br); DeleteObject(pn); // vybrané pero/štětec nejde smazat
         if (b - a > S(30)) { SetTextColor(hdc, RGB(255, 255, 255)); RECT tr = { a + S(6), yb, b - S(4), yb + LANE - 12 }; drawText(hdc, t.name, tr, DT_LEFT | DT_END_ELLIPSIS); }
     }
     int msTop = y0 + AXIS + g_tlLanes * LANE + 16;
@@ -101,7 +101,7 @@ static void paintTimeline(HDC hdc, int width, int height, int top) {
         if (!it.milestone) continue;
         int cx = xOf(it.start), cy = msTop + 8; const mpp::Task& t = g_prj.tasks[it.idx];
         HBRUSH br = CreateSolidBrush(t.critical ? T.crit : T.mile); SelectObject(hdc, br); SelectObject(hdc, GetStockObject(NULL_PEN));
-        POINT pts[4] = { { cx, cy - 7 }, { cx + 7, cy }, { cx, cy + 7 }, { cx - 7, cy } }; Polygon(hdc, pts, 4); DeleteObject(br);
+        POINT pts[4] = { { cx, cy - 7 }, { cx + 7, cy }, { cx, cy + 7 }, { cx - 7, cy } }; Polygon(hdc, pts, 4); SelectObject(hdc, GetStockObject(NULL_BRUSH)); DeleteObject(br);
         int ly = cy + 10 + it.lane * MS_ROW;
         SelectObject(hdc, pStrong); MoveToEx(hdc, cx, cy + 7, nullptr); LineTo(hdc, cx, ly);
         std::wstring label = msLabel(t);
@@ -109,7 +109,7 @@ static void paintTimeline(HDC hdc, int width, int height, int top) {
         int lx = msLabelX(cx, sz.cx, width);
         SetTextColor(hdc, T.ink); RECT lr = { lx, ly, lx + sz.cx + 2, ly + MS_ROW }; drawText(hdc, label, lr, DT_LEFT);
     }
-    DeleteObject(pStrong); DeleteObject(hb);
+    SelectObject(hdc, GetStockObject(BLACK_PEN)); DeleteObject(pStrong); DeleteObject(hb);
 }
 static int tlItemAt(int x, int y, int width, int top) {
     const int AXIS = S(34), LANE = S(40);
@@ -142,7 +142,7 @@ static LRESULT CALLBACK TimelineProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) 
             if (saveDialog(buf, L"Obrázek PNG\0*.png\0", L"png", L"Uložit časovou osu do PNG")) {
                 int w = 2400; { HDC dc = GetDC(hwnd); layoutMsLabels(dc, w); ReleaseDC(hwnd, dc); }
                 int h = S(34) + g_tlLanes * S(40) + 16 + g_tlMsRows * S(22) + 40;
-                HBITMAP bmp = renderPageBitmap(w, h, 96, [&](HDC hdc, RECT) { paintTimeline(hdc, w, h, 0); });
+                HBITMAP bmp = renderPageBitmap(w, h, [&](HDC hdc, RECT) { paintTimeline(hdc, w, h, 0); });
                 Gdiplus::Bitmap gb(bmp, nullptr); CLSID clsid; bool ok = pngEncoderClsid(&clsid) == 0 && gb.Save(buf, &clsid, nullptr) == Gdiplus::Ok; DeleteObject(bmp);
                 rebuildTimeline(); // zpět rozložení pro obrazovku
                 if (ok) ShellExecuteW(nullptr, L"open", buf, nullptr, nullptr, SW_SHOWNORMAL); else msgError(L"Obrázek se nepodařilo uložit.");
@@ -316,7 +316,7 @@ static void paintMonth(HDC hdc, int w, int h) {
     SelectObject(hdc, g_font);
     int64_t first = mpp::daysFromCivil(g_caYear, (unsigned)g_caMonthN, 1); int startDow = (int)mpp::dowOfUnixDay(first);
     int64_t td = mpp::toUnixDays(g_today);
-    HPEN pg = CreatePen(PS_SOLID, 1, T.grid); SelectObject(hdc, pg);
+    HPEN pg = CreatePen(PS_SOLID, 1, T.grid); SelectObject(hdc, pg); SelectObject(hdc, GetStockObject(NULL_BRUSH)); // Rectangle jen obrys, jinak bílá výplň přemaže víkendy a svátky
     HBRUSH bNon = CreateSolidBrush(T.weekend), bHol = CreateSolidBrush(T.holiday), bWorkEx = CreateSolidBrush(T.workLight);
     for (int cell = 0; cell < 42; cell++) {
         int64_t day = first - startDow + cell; int y; unsigned m, d; mpp::civilFromDays(day, y, m, d);
@@ -329,7 +329,7 @@ static void paintMonth(HDC hdc, int w, int h) {
         RECT tr = { r.left + 4, r.top + 2, r.right - 4, r.top + S(18) }; drawText(hdc, std::to_wstring(d), tr, DT_LEFT);
         if (inMonth && e && !e->name.empty()) { SelectObject(hdc, g_fontSmall); RECT nr = { r.left + 4, r.top + S(18), r.right - 4, r.bottom - 2 }; DrawTextW(hdc, e->name.c_str(), (int)e->name.size(), &nr, DT_LEFT | DT_WORDBREAK | DT_NOPREFIX | DT_END_ELLIPSIS); SelectObject(hdc, g_font); }
     }
-    DeleteObject(pg); DeleteObject(bNon); DeleteObject(bHol); DeleteObject(bWorkEx);
+    SelectObject(hdc, GetStockObject(BLACK_PEN)); DeleteObject(pg); DeleteObject(bNon); DeleteObject(bHol); DeleteObject(bWorkEx);
 }
 static LRESULT CALLBACK MonthProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_PAINT) { PAINTSTRUCT ps; HDC hdc = BeginPaint(hwnd, &ps); RECT rc; GetClientRect(hwnd, &rc); HDC mem = CreateCompatibleDC(hdc); HBITMAP bmp = CreateCompatibleBitmap(hdc, rc.right, rc.bottom); HGDIOBJ old = SelectObject(mem, bmp); paintMonth(mem, rc.right, rc.bottom); BitBlt(hdc, 0, 0, rc.right, rc.bottom, mem, 0, 0, SRCCOPY); SelectObject(mem, old); DeleteObject(bmp); DeleteDC(mem); EndPaint(hwnd, &ps); return 0; }

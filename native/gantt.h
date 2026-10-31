@@ -21,7 +21,8 @@ struct GanttPaint {
         int w = area.right, h = area.bottom;
         int legendH = (legend && !g_legend.empty()) ? S(24) : 0;
         int bottom = imin(h - legendH, yOf(firstRow + rowCount) + rowH);
-        HRGN clip = CreateRectRgn(area.left, area.top, area.right, area.bottom); SelectClipRgn(hdc, clip); DeleteObject(clip);
+        // IntersectClipRect bere logické souřadnice; SelectClipRgn bere zařízení a v exportu (MM_ANISOTROPIC) při 125–150 % ořízl levou část grafu
+        SaveDC(hdc); IntersectClipRect(hdc, area.left, area.top, area.right, area.bottom);
         SetBkMode(hdc, TRANSPARENT);
         const int tier = headerH / 2;
         int mode = pxPerDay >= 16 ? 0 : (pxPerDay >= 3.5 ? 1 : 2);
@@ -33,7 +34,7 @@ struct GanttPaint {
         if (mode < 2 && weekends) for (int64_t d = dFrom; d <= dTo; d++) {
             bool wk = mpp::dowOfUnixDay(d) >= 5; const mpp::CalException* e = g_holidays ? cal.exceptionAt(d) : nullptr;
             bool nonWork = g_holidays ? !cal.isWorking(d) : wk;
-            if (nonWork || e) { RECT r = { xOfDay(d), area.top + headerH, xOfDay(d + 1), bottom }; FillRect(hdc, &r, e ? bHoliday : bWeekend); }
+            if (nonWork) { RECT r = { xOfDay(d), area.top + headerH, xOfDay(d + 1), bottom }; FillRect(hdc, &r, e ? bHoliday : bWeekend); } // pracovní výjimka (odpracovaná sobota) není svátek
         }
         if (highlightSel && selRow >= firstRow && selRow < firstRow + rowCount) { RECT r = { area.left, yOf(selRow), w, yOf(selRow) + rowH }; FillRect(hdc, &r, bSel); }
         SelectObject(hdc, pGrid);
@@ -135,11 +136,13 @@ struct GanttPaint {
             if (bCustom) DeleteObject(bCustom); if (bCustomLight) DeleteObject(bCustomLight);
         }
         if (links) {
+            SaveDC(hdc); IntersectClipRect(hdc, area.left, area.top + headerH, area.right, bottom); // vazby k úkolům mimo obraz nesmí kreslit přes záhlaví a legendu
             int selUid = (selRow >= 0 && selRow < (int)g_rows.size()) ? g_prj.tasks[g_rows[selRow]].uid : -1;
             HPEN pLink = CreatePen(PS_SOLID, 1, T.link), pLinkSel = CreatePen(PS_SOLID, S(2), T.linkSel);
             HBRUSH bLink = CreateSolidBrush(T.link), bLinkSel = CreateSolidBrush(T.linkSel);
             for (int pass = 0; pass < 2; pass++)
-            for (int r = firstRow; r < firstRow + rowCount && r < (int)g_rows.size(); r++) {
+            // i následníci mimo obraz (±50 řádků), jinak vazba z viditelného úkolu dolů/nahoru chybí
+            for (int r = imax(0, firstRow - 50); r < firstRow + rowCount + 50 && r < (int)g_rows.size(); r++) {
                 const mpp::Task& s = g_prj.tasks[g_rows[r]];
                 if (s.isNull || !s.start) continue;
                 int ys = yOf(r) + rowH / 2;
@@ -169,7 +172,7 @@ struct GanttPaint {
                     Polygon(hdc, ah, 3);
                 }
             }
-            SelectObject(hdc, GetStockObject(WHITE_BRUSH)); DeleteObject(pLink); DeleteObject(pLinkSel); DeleteObject(bLink); DeleteObject(bLinkSel);
+            RestoreDC(hdc, -1); DeleteObject(pLink); DeleteObject(pLinkSel); DeleteObject(bLink); DeleteObject(bLinkSel);
         }
         if (progressLine && g_refDate && g_refDate >= mpp::fromUnixDays(day0) && g_refDate <= g_end) {
             std::vector<POINT> pts;
@@ -213,8 +216,8 @@ struct GanttPaint {
             }
         }
         HGDIOBJ objs[] = { bWeekend, bHoliday, bHeader, bSel, pGrid, pGridDark, bTask, bDone, bCrit, bCritDone, bSum, bBase, bMile, bInactive, bDeadline, bConstraint, pLate, pBar, pCrit };
+        RestoreDC(hdc, -1); // vrátí ořez i původní pero a štětec, takže níže mazané objekty už nejsou vybrané
         for (HGDIOBJ o : objs) DeleteObject(o);
-        SelectClipRgn(hdc, nullptr);
     }
 };
 
@@ -251,8 +254,9 @@ static void paintGantt(HDC hdc, int w, int h) {
 }
 
 // Tisková / exportní sestava: tabulka (zobrazené sloupce) + Gantt pro řádky [r0, r1), celý projekt na šířku
-static void renderReport(HDC hdc, RECT area, int r0, int r1, int page, int pages) {
-    int dpi = GetDeviceCaps(hdc, LOGPIXELSX);
+// dpi: měřítko písma a řádků (0 = podle DC – tiskárna); PNG/PDF ho zadávají pevně, aby výstup nezávisel na zvětšení obrazovky
+static void renderReport(HDC hdc, RECT area, int r0, int r1, int page, int pages, int dpi = 0) {
+    if (!dpi) dpi = GetDeviceCaps(hdc, LOGPIXELSX);
     auto P = [&](int px) { return MulDiv(px, dpi, 96); };
     LOGFONTW lf = {}; lf.lfHeight = -MulDiv(8, dpi, 72); wcscpy(lf.lfFaceName, L"Segoe UI"); lf.lfCharSet = DEFAULT_CHARSET;
     HFONT f = CreateFontIndirectW(&lf); lf.lfWeight = FW_BOLD; HFONT fb = CreateFontIndirectW(&lf);

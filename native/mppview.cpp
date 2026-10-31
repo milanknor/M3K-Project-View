@@ -1,17 +1,24 @@
 // mppview.cpp - nativní Win32 prohlížeč harmonogramů MS Project (.mpp / .xml) pro techniky. Hlavní okno, tabulka, Gantt, záložky, nastavení.
 #include "panels.h"
 #include "detail.h"
+#include <memory>
 
 enum { IDM_OPEN = 101, IDM_OPEN_NEW, IDM_RELOAD, IDM_EXIT, IDM_ZOOM_IN, IDM_ZOOM_OUT, IDM_ZOOM_FIT, IDM_TODAY, IDM_GOTO_SEL, IDM_EXPAND_ALL, IDM_COLLAPSE_ALL, IDM_ABOUT,
        IDM_EXPORT_CSV, IDM_EXPORT_XLSX, IDM_EXPORT_PNG, IDM_EXPORT_PDF, IDM_PRINT, IDM_COPY, IDM_ASSOC, IDM_UNASSOC, IDM_DETAIL, IDM_PROGRESS, IDM_HOLIDAYS, IDM_DARK, IDM_FONT_UP, IDM_FONT_DOWN,
        IDM_SCALE_DAYS, IDM_SCALE_WEEKS, IDM_SCALE_MONTHS, IDM_FIND, IDM_CLEAR_FILTER, IDM_ADV_FILTER, IDM_CHECK, IDM_COMPARE, IDM_VIEW_SAVE, IDM_VIEW_DELETE, IDM_COLS_RESET, IDM_COLS_FIT,
-       IDM_LEVEL1 = 140, IDM_RECENT0 = 150, IDM_TAB0 = 170, IDM_LICENSE = 180, IDM_LICENSE_DIR, IDM_GOTO_BASE = 200, IDM_COLOR_BASE = 300, IDM_BASELINE_BASE = 400, IDM_VIEW_BASE = 420, IDM_COL_BASE = 500,
+       IDM_LEVEL1 = 140, IDM_RECENT0 = 150, IDM_TAB0 = 170, IDM_LICENSE = 180, IDM_LICENSE_DIR, IDM_GOTO_BASE = 200, IDM_COLOR_BASE = 3000 /* + 1 + index sloupce, nesmí zasahovat do dalších rozsahů */, IDM_BASELINE_BASE = 400, IDM_VIEW_BASE = 420, IDM_COL_BASE = 500,
        IDC_SEARCH = 901, IDC_FILTER, IDC_RSC, IDC_SCALE, IDC_SUMMARY, IDC_DETAIL, IDC_TABS, IDC_ADVBTN, IDC_LEVEL, IDC_ZOOMOUT, IDC_ZOOMIN, IDC_LINKS, IDC_BASELINE, IDC_TODAY };
 static HWND g_lblSearch, g_lblFilter, g_lblLevel, g_lblScale, g_advBtn, g_level, g_zoomOut, g_zoomIn, g_chkLinks, g_chkBase, g_todayBtn;
 static bool g_dragDetail = false;
+static HWND g_lastFocus = nullptr; // prvek s fokusem při deaktivaci okna
+static int g_splitPref = -1; // šířka tabulky zvolená uživatelem; g_splitX je skutečná, omezená šířkou okna
+static bool g_placing = false; // obnovení polohy okna při startu (WM_DPICHANGED pak nemění velikost okna)
+static bool g_statBusy = false; // kontrola změny souboru běží ve vlákně na pozadí
+enum { WM_APP_FILESTAT = WM_APP + 3 };
 static const wchar_t* TAB_NAMES[] = { L"Ganttův diagram", L"Časová osa", L"Zdroje", L"Vytížení", L"Kalendář", L"Projekt" };
 static HWND g_panels[6];
-static void rebuildRows(int keepUid = -1);
+static void rebuildRows(int keepUid = -1, bool openMatches = false);
+static void updateSelectionStatus();
 static void loadFile(const std::wstring& path, int keepUid = -1);
 static void layout();
 static void applyTheme();
@@ -42,14 +49,15 @@ static void fillListItems() {
     }
     SendMessage(g_list, WM_SETREDRAW, TRUE, 0);
 }
-static void rebuildRows(int keepUid) {
+// openMatches: rozbalit souhrny se shodou filtru – jen při změně filtru, jinak by nešly sbalit a po zrušení filtru zůstaly rozbalené
+static void rebuildRows(int keepUid, bool openMatches) {
     size_t n = g_prj.tasks.size();
     g_rows.clear(); g_rowOfTask.assign(n, -1); g_keep.assign(n, 0);
     bool fa = filterActive();
     for (size_t i = n; i-- > 0;) {
         mpp::Task& t = g_prj.tasks[i];
         bool m = taskMatches(t, (int)i);
-        if (fa && t.summary) { bool anyChild = false; for (int c : t.children) if (g_keep[c]) { anyChild = true; break; } m = m || anyChild; if (anyChild) t.expanded = true; }
+        if (fa && t.summary) { bool anyChild = false; for (int c : t.children) if (g_keep[c]) { anyChild = true; break; } m = m || anyChild; if (anyChild && openMatches) t.expanded = true; }
         g_keep[i] = m;
     }
     std::vector<int> roots; for (int r : g_prj.roots) if (g_keep[r]) roots.push_back(r);
@@ -65,6 +73,7 @@ static void rebuildRows(int keepUid) {
             ListView_SetItemState(g_list, g_selRow, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
             ListView_EnsureVisible(g_list, g_selRow, FALSE);
         }
+        if (g_selRow < 0) { updateDetail(); updateSelectionStatus(); } // vybraný úkol skryl filtr – detail nesmí ukazovat jeho údaje
     }
     RECT rc;
     if (!g_rows.empty() && ListView_GetItemRect(g_list, 0, &rc, LVIR_BOUNDS)) g_rowH = rc.bottom - rc.top;
@@ -101,7 +110,9 @@ static void computeRange() {
     Time mn = 0, mx = 0;
     for (const mpp::Task& t : g_prj.tasks) {
         if (t.isNull) continue;
-        for (Time v : { t.start, t.finish, t.baselineStartV(), t.baselineFinishV(), t.deadline }) { if (!v) continue; if (!mn || v < mn) mn = v; if (!mx || v > mx) mx = v; }
+        auto add = [&](Time v) { if (!v) return; if (!mn || v < mn) mn = v; if (!mx || v > mx) mx = v; };
+        for (Time v : { t.start, t.finish, t.baselineStartV(), t.baselineFinishV(), t.deadline }) add(v);
+        for (int n : g_prj.baselinesUsed) if (n > 0 && n <= 10) { add(t.baselines[n].start); add(t.baselines[n].finish); } // i směrné plány 1–10 (lze je přepnout)
     }
     if (!mn) { mn = g_today - 30 * 86400; mx = g_today + 60 * 86400; }
     int64_t d0 = mpp::toUnixDays(mn) - 7; d0 -= mpp::dowOfUnixDay(d0);
@@ -341,7 +352,7 @@ static void applyFilterFromControls() {
     wchar_t b[256]; GetWindowTextW(g_search, b, 256); g_filterText = lower(b);
     g_filterMode = (int)SendMessage(g_filter, CB_GETCURSEL, 0, 0); if (g_filterMode < 0) g_filterMode = FM_ALL;
     int rs = (int)SendMessage(g_rscCombo, CB_GETCURSEL, 0, 0); g_filterRsc = rs > 0 ? (int)SendMessage(g_rscCombo, CB_GETITEMDATA, rs, 0) : -1;
-    if (g_loaded) rebuildRows(selectedUid());
+    if (g_loaded) rebuildRows(selectedUid(), true);
 }
 static void clearFilters() { SetWindowTextW(g_search, L""); SendMessage(g_filter, CB_SETCURSEL, 0, 0); SendMessage(g_rscCombo, CB_SETCURSEL, 0, 0); g_adv = AdvFilter(); applyFilterFromControls(); }
 
@@ -372,7 +383,7 @@ static void advancedFilterDialog() {
         else if (id == 113) { std::wstring name; if (askText(L"Uložit filtr", L"Název filtru:", name) && !name.empty()) { AdvFilter f = read(); f.name = name; g_savedFilters.erase(std::remove_if(g_savedFilters.begin(), g_savedFilters.end(), [&](const AdvFilter& x) { return x.name == name; }), g_savedFilters.end()); g_savedFilters.push_back(f); storeSavedFilters(); fillSaved(); } }
     };
     (void)bLoad; (void)bDel;
-    if (dlgRun(d) == 1) rebuildRows(selectedUid());
+    if (dlgRun(d) == 1) rebuildRows(selectedUid(), true);
 }
 
 // ---------------- pohledy, obarvení, směrný plán (menu) ----------------
@@ -387,7 +398,7 @@ static void applyView(const SavedView& v) {
     g_filterMode = imax(0, imin(FM_COUNT - 1, v.filterMode)); SendMessage(g_filter, CB_SETCURSEL, g_filterMode, 0); g_adv = v.adv; g_colorKey = v.colorKey;
     if (v.level > 0) for (auto& t : g_prj.tasks) if (t.summary) t.expanded = t.level < v.level;
     if (v.pxPerDay > 0) g_pxPerDay = v.pxPerDay;
-    rebuildRows(selectedUid()); updateScroll(); syncScaleCombo();
+    rebuildRows(selectedUid(), true); updateScroll(); syncScaleCombo();
 }
 static void rebuildColorMenu() {
     while (GetMenuItemCount(g_menuColor) > 0) DeleteMenu(g_menuColor, 0, MF_BYPOSITION);
@@ -403,7 +414,7 @@ static void rebuildBaselineMenu() {
 }
 
 // ---------------- načtení souboru, sledování změn ----------------
-static void addRecent(const std::wstring& path);
+static void addRecent(std::wstring path);
 static void refreshFileTime() { WIN32_FILE_ATTRIBUTE_DATA fa = {}; if (GetFileAttributesExW(g_file.c_str(), GetFileExInfoStandard, &fa)) g_fileTime = fa.ftLastWriteTime; }
 static void loadFile(const std::wstring& path, int keepUid) {
     std::map<int, bool> expandedState; if (keepUid >= 0 && g_loaded) for (auto& t : g_prj.tasks) if (t.summary) expandedState[t.uid] = t.expanded;
@@ -419,8 +430,8 @@ static void loadFile(const std::wstring& path, int keepUid) {
     const mpp::Calendar& cal = g_prj.calendar();
     g_var.assign(g_prj.tasks.size(), INT_MIN); g_succ.clear();
     for (size_t i = 0; i < g_prj.tasks.size(); i++) { const mpp::Task& t = g_prj.tasks[i]; if (t.finish && t.baselineFinishV()) g_var[i] = (int)cal.workingDaysBetween(mpp::toUnixDays(t.baselineFinishV()), mpp::toUnixDays(t.finish)); for (const mpp::Relation& r : t.preds) g_succ[r.predUid].push_back(t.uid); }
+    std::vector<std::wstring> keys; for (int i : g_visible) if (i < (int)g_cols.size()) keys.push_back(g_cols[i].key); // klíče předchozího souboru – před buildColumns, ten mění indexy
     buildColumns();
-    std::vector<std::wstring> keys; for (int i : g_visible) if (i < (int)g_cols.size()) keys.push_back(g_cols[i].key); // klíče předchozího souboru
     if (keys.empty()) { std::wstring saved = iniGet(L"Cols"); keys = saved.empty() ? DEFAULT_COLS : split(saved, L','); }
     setVisibleColumns(keys);
     if (colIndex(g_colorKey) < 0) g_colorKey.clear();
@@ -430,7 +441,10 @@ static void loadFile(const std::wstring& path, int keepUid) {
     std::sort(rs.begin(), rs.end(), [](const mpp::Resource* a, const mpp::Resource* b) { return collate(a->name, b->name) < 0; });
     for (auto* r : rs) { int i = (int)SendMessage(g_rscCombo, CB_ADDSTRING, 0, (LPARAM)r->name.c_str()); SendMessage(g_rscCombo, CB_SETITEMDATA, i, r->uid); }
     SendMessage(g_rscCombo, CB_SETCURSEL, 0, 0); g_filterRsc = -1;
+    showTip(-1, {}); // bublina drží index úkolu z předchozích dat
+    Time leftEdge = keepUid >= 0 && g_origin ? g_origin + (Time)(g_hscroll / g_pxPerDay * 86400) : 0; // F5: graf zůstane na stejném datu
     computeRange(); layout();
+    if (leftEdge) g_hscroll = imax(0, X(leftEdge));
     rebuildRows(keepUid);
     if (keepUid < 0) { zoomFit(); if (g_pxPerDay < 6) setZoom(6, 0); if (g_today >= g_origin && g_today <= g_end) gotoToday(); } else updateScroll();
     SetWindowTextW(g_main, (fileName(path) + L" – " + APP_TITLE).c_str());
@@ -440,23 +454,39 @@ static void loadFile(const std::wstring& path, int keepUid) {
     if (!g_batch) addRecent(path); // dávkový export (--csv/--pdf…) nemá měnit seznam nedávných souborů
     updateDetail(); rebuildColorMenu(); rebuildBaselineMenu(); refreshPanels();
 }
-static void reloadFile() { if (g_loaded) loadFile(g_file, selectedUid() >= 0 ? selectedUid() : 0); }
+static void reloadFile() { if (g_loaded) loadFile(g_file, selectedUid() >= 0 ? selectedUid() : INT_MAX); } // INT_MAX: nic nevybírat (uid 0 je projektový souhrn)
+// Čas změny souboru se zjišťuje ve vlákně na pozadí: soubor na nedostupném síťovém disku by jinak každé 2 s zasekl okno.
+struct FileStat { std::wstring path; FILETIME time; bool ok; };
 static void checkFileChanged() {
-    if (!g_loaded || g_reloadAsked) return;
-    WIN32_FILE_ATTRIBUTE_DATA fa = {}; if (!GetFileAttributesExW(g_file.c_str(), GetFileExInfoStandard, &fa)) return;
-    if (CompareFileTime(&fa.ftLastWriteTime, &g_fileTime) == 0) return;
+    if (!g_loaded || g_statBusy) return;
+    FileStat* fs = new FileStat{ g_file, {}, false };
+    g_statBusy = true;
+    if (!TrySubmitThreadpoolCallback([](PTP_CALLBACK_INSTANCE, void* p) {
+            FileStat* fs = (FileStat*)p; WIN32_FILE_ATTRIBUTE_DATA fa = {};
+            fs->ok = GetFileAttributesExW(fs->path.c_str(), GetFileExInfoStandard, &fa) != 0; fs->time = fa.ftLastWriteTime;
+            if (!PostMessageW(g_main, WM_APP_FILESTAT, 0, (LPARAM)fs)) delete fs; // okno už neexistuje
+        }, fs, nullptr)) { delete fs; g_statBusy = false; }
+}
+static void onFileStat(const FileStat& fs) {
+    g_statBusy = false;
+    // !IsWindowEnabled: otevřený dialog (kontrola, porovnání…) drží indexy úkolů – nenačítat pod ním, zeptat se až po zavření
+    if (!fs.ok || !g_loaded || fs.path != g_file || g_reloadAsked || !IsWindowEnabled(g_main)) return;
+    if (CompareFileTime(&fs.time, &g_fileTime) == 0) return;
     g_reloadAsked = true;
     if (MessageBoxW(g_main, (L"Soubor " + fileName(g_file) + L" byl na disku změněn.\nZnovu načíst?").c_str(), APP_TITLE, MB_ICONQUESTION | MB_YESNO) == IDYES) reloadFile();
-    else refreshFileTime(), g_reloadAsked = false;
+    refreshFileTime(); g_reloadAsked = false; // i po nepovedeném načtení (soubor se ještě zapisoval) – další uložení se znovu ohlásí
 }
 
 // ---------------- nastavení ----------------
 static void rebuildRecentMenu() {
     for (int i = 0; i < MAX_RECENT; i++) DeleteMenu(g_menuFile, IDM_RECENT0 + i, MF_BYCOMMAND);
     int pos = GetMenuItemCount(g_menuFile) - 2;
-    for (size_t i = 0; i < g_recent.size(); i++) InsertMenuW(g_menuFile, pos + (UINT)i, MF_BYPOSITION | MF_STRING, IDM_RECENT0 + i, (L"&" + std::to_wstring(i + 1) + L"  " + fileName(g_recent[i])).c_str());
+    for (size_t i = 0; i < g_recent.size(); i++) {
+        std::wstring f = fileName(g_recent[i]); for (size_t p = 0; (p = f.find(L'&', p)) != std::wstring::npos; p += 2) f.insert(p, 1, L'&'); // & v názvu není zkratková klávesa
+        InsertMenuW(g_menuFile, pos + (UINT)i, MF_BYPOSITION | MF_STRING, IDM_RECENT0 + i, (L"&" + std::to_wstring(i + 1) + L"  " + f).c_str());
+    }
 }
-static void addRecent(const std::wstring& path) {
+static void addRecent(std::wstring path) { // kopie: path bývá přímo prvek g_recent (otevření z nabídky) a erase by ho přepsal
     g_recent.erase(std::remove_if(g_recent.begin(), g_recent.end(), [&](const std::wstring& s) { return _wcsicmp(s.c_str(), path.c_str()) == 0; }), g_recent.end());
     g_recent.insert(g_recent.begin(), path); if ((int)g_recent.size() > MAX_RECENT) g_recent.resize(MAX_RECENT);
     for (int i = 0; i < MAX_RECENT; i++) iniSet((L"Recent" + std::to_wstring(i)).c_str(), i < (int)g_recent.size() ? g_recent[i] : L"");
@@ -464,8 +494,8 @@ static void addRecent(const std::wstring& path) {
 }
 static void saveSettings() {
     WINDOWPLACEMENT wp = { sizeof(wp) }; GetWindowPlacement(g_main, &wp);
-    iniSet(L"Window", std::to_wstring(wp.rcNormalPosition.left) + L"," + std::to_wstring(wp.rcNormalPosition.top) + L"," + std::to_wstring(wp.rcNormalPosition.right) + L"," + std::to_wstring(wp.rcNormalPosition.bottom) + L"," + std::to_wstring(wp.showCmd == SW_SHOWMAXIMIZED ? 1 : 0));
-    iniSet(L"Split", std::to_wstring(MulDiv(g_splitX, 96, g_dpi))); iniSet(L"Zoom", std::to_wstring((int)(g_pxPerDay * 100)));
+    iniSet(L"Window", std::to_wstring(wp.rcNormalPosition.left) + L"," + std::to_wstring(wp.rcNormalPosition.top) + L"," + std::to_wstring(wp.rcNormalPosition.right) + L"," + std::to_wstring(wp.rcNormalPosition.bottom) + L"," + std::to_wstring(wp.showCmd == SW_SHOWMAXIMIZED || (wp.showCmd == SW_SHOWMINIMIZED && (wp.flags & WPF_RESTORETOMAXIMIZED)) ? 1 : 0));
+    iniSet(L"Split", std::to_wstring(MulDiv(g_splitPref > 0 ? g_splitPref : g_splitX, 96, g_dpi))); iniSet(L"Zoom", std::to_wstring((int)(g_pxPerDay * 100)));
     iniSet(L"Detail", g_detailVisible ? L"1" : L"0"); iniSet(L"ProgressLine", g_progressLine ? L"1" : L"0"); iniSet(L"Holidays", g_holidays ? L"1" : L"0"); iniSet(L"Dark", g_dark ? L"1" : L"0"); iniSet(L"FontPt", std::to_wstring(g_fontPt));
     iniSet(L"ColorKey", g_colorKey); iniSet(L"Baseline", std::to_wstring(g_baselineIdx));
     iniSet(L"ShowLinks", g_showLinks ? L"1" : L"0"); iniSet(L"ShowBaseline", g_showBaseline ? L"1" : L"0"); if (g_detailH > 0) iniSet(L"DetailH", std::to_wstring(MulDiv(g_detailH, 96, g_dpi)));
@@ -475,13 +505,21 @@ static void saveSettings() {
 static void loadSettings() {
     wchar_t dir[MAX_PATH]; SHGetFolderPathW(nullptr, CSIDL_APPDATA, nullptr, 0, dir);
     std::wstring d = std::wstring(dir) + L"\\MppView"; CreateDirectoryW(d.c_str(), nullptr); g_iniPath = d + L"\\mppview.ini";
+    // nový ini jako UTF-16 (BOM): WritePrivateProfileStringW jinak zapisuje ANSI a znaky mimo kódovou stránku (cesty, názvy) se ztratí
+    HANDLE f = CreateFileW(g_iniPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE) { DWORD wr; WriteFile(f, "\xFF\xFE", 2, &wr, nullptr); CloseHandle(f); }
     g_detailVisible = iniInt(L"Detail", 1) != 0; g_progressLine = iniInt(L"ProgressLine", 1) != 0; g_holidays = iniInt(L"Holidays", 1) != 0; g_dark = iniInt(L"Dark", 0) != 0; g_fontPt = imax(7, imin(16, iniInt(L"FontPt", 9)));
-    int sp = iniInt(L"Split", -1); if (sp > 0) g_splitX = S(sp);
+    int sp = iniInt(L"Split", -1); if (sp > 0) g_splitPref = S(sp);
     int z = iniInt(L"Zoom", 0); if (z > 0) g_pxPerDay = z / 100.0;
     g_colorKey = iniGet(L"ColorKey"); g_baselineIdx = iniInt(L"Baseline", 0);
     g_showLinks = iniInt(L"ShowLinks", 1) != 0; g_showBaseline = iniInt(L"ShowBaseline", 1) != 0; g_detailH = S(iniInt(L"DetailH", 270));
     for (auto& kv : split(iniGet(L"ColWidths"), L',')) { size_t e = kv.find(L'='); if (e != std::wstring::npos) { int w = _wtoi(kv.substr(e + 1).c_str()); if (w >= 10 && w <= 2000) g_colWidths[kv.substr(0, e)] = w; } }
-    for (int i = 0; i < MAX_RECENT; i++) { std::wstring r = iniGet((L"Recent" + std::to_wstring(i)).c_str()); if (!r.empty() && GetFileAttributesW(r.c_str()) != INVALID_FILE_ATTRIBUTES) g_recent.push_back(r); }
+    for (int i = 0; i < MAX_RECENT; i++) {
+        std::wstring r = iniGet((L"Recent" + std::to_wstring(i)).c_str()); if (r.empty()) continue;
+        // síťové cesty se při startu neověřují: bez VPN by start visel desítky sekund a soubory by ze seznamu zmizely
+        bool remote = r.compare(0, 2, L"\\\\") == 0 || (r.size() > 2 && r[1] == L':' && GetDriveTypeW(r.substr(0, 3).c_str()) == DRIVE_REMOTE);
+        if (remote || GetFileAttributesW(r.c_str()) != INVALID_FILE_ATTRIBUTES) g_recent.push_back(r);
+    }
     loadSavedFilters(); loadViews();
 }
 
@@ -515,12 +553,43 @@ static void applyTheme() {
     RedrawWindow(g_main, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME);
 }
 static void applyFonts() {
+    struct FontMap { HFONT from[3], to[3]; } fm = { { g_font, g_fontBold, g_fontSmall }, {} };
     createFonts();
+    fm.to[0] = g_font; fm.to[1] = g_fontBold; fm.to[2] = g_fontSmall;
+    // i popisky panelů, které nemají vlastní proměnnou – jinak by zůstaly se smazaným písmem (systémové písmo)
+    EnumChildWindows(g_main, [](HWND c, LPARAM lp) -> BOOL { const FontMap* m = (const FontMap*)lp; HFONT f = (HFONT)SendMessage(c, WM_GETFONT, 0, 0); for (int i = 0; i < 3; i++) if (f && f == m->from[i]) { SendMessage(c, WM_SETFONT, (WPARAM)m->to[i], FALSE); break; } return TRUE; }, (LPARAM)&fm);
     for (HWND c : { g_search, g_filter, g_rscCombo, g_scale, g_summary, g_list, g_status, g_tabs, g_rsList, g_rsAsg, g_rsSummary, g_usList, g_usTasks, g_usSummary, g_usPeriod, g_usMode, g_usOver, g_caCombo, g_caWeek, g_caExc, g_caTitle, g_caPrev, g_caNext, g_caToday, g_prList, g_tlLevel, g_tlMs, g_tlCrit, g_tlPng, g_tlSummary,
                     g_lblSearch, g_lblFilter, g_lblLevel, g_lblScale, g_advBtn, g_level, g_zoomOut, g_zoomIn, g_chkLinks, g_chkBase, g_todayBtn, g_dtTabs, g_dtAsg, g_dtLinks, g_dtNotes }) if (c) SendMessage(c, WM_SETFONT, (WPARAM)g_font, TRUE);
     for (HWND c : { g_rsTitle, g_usTitle }) if (c) SendMessage(c, WM_SETFONT, (WPARAM)g_fontBold, TRUE);
     layout(); if (g_loaded) rebuildRows(selectedUid());
     updateDetail();
+}
+// Okno je na monitoru s jiným měřítkem (přesun mezi monitory, start na druhém monitoru): přepočítat písma, šířky sloupců,
+// prvky panelů umístěné jen při vytvoření a rozložení. Bez toho zůstal text po přesunu z 150 % na 100 % obří (a naopak).
+static void onDpiChanged(int dpi) {
+    int old = g_dpi; if (dpi <= 0 || dpi == old) return;
+    g_dpi = dpi;
+    if (g_splitPref > 0) g_splitPref = MulDiv(g_splitPref, dpi, old);
+    if (g_detailH > 0) g_detailH = MulDiv(g_detailH, dpi, old);
+    struct Scale { int n, d; HWND parent; } sc = { dpi, old, nullptr };
+    EnumChildWindows(g_main, [](HWND w, LPARAM lp) -> BOOL { // sloupce všech tabulek (hlavní, panely, detail)
+        const Scale* s = (const Scale*)lp; wchar_t cls[32] = {}; GetClassNameW(w, cls, 32);
+        if (_wcsicmp(cls, WC_LISTVIEWW) == 0) for (int i = 0, n = Header_GetItemCount(ListView_GetHeader(w)); i < n; i++) ListView_SetColumnWidth(w, i, MulDiv(ListView_GetColumnWidth(w, i), s->n, s->d));
+        return TRUE; }, (LPARAM)&sc);
+    for (HWND p : g_panels) if (p) { // přímé prvky panelů (vnořené, např. záhlaví tabulky, si umístí jejich rodič)
+        sc.parent = p;
+        EnumChildWindows(p, [](HWND w, LPARAM lp) -> BOOL {
+            const Scale* s = (const Scale*)lp; if (GetParent(w) != s->parent) return TRUE;
+            RECT r; GetWindowRect(w, &r); MapWindowPoints(HWND_DESKTOP, s->parent, (POINT*)&r, 2);
+            wchar_t cls[32] = {}; GetClassNameW(w, cls, 32);
+            if (_wcsicmp(cls, L"ComboBox") == 0) { RECT d; if (SendMessage(w, CB_GETDROPPEDCONTROLRECT, 0, (LPARAM)&d)) r.bottom = r.top + (d.bottom - d.top); } // výška i s rozbalovacím seznamem
+            SetWindowPos(w, nullptr, MulDiv(r.left, s->n, s->d), MulDiv(r.top, s->n, s->d), MulDiv(r.right - r.left, s->n, s->d), MulDiv(r.bottom - r.top, s->n, s->d), SWP_NOZORDER | SWP_NOACTIVATE);
+            return TRUE; }, (LPARAM)&sc);
+    }
+    applyFonts(); // písma pro nové DPI, rozložení hlavního okna a tabulka
+    for (HWND p : g_panels) if (p) { RECT r; GetClientRect(p, &r); SendMessage(p, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right, r.bottom)); }
+    if (g_detail) { RECT r; GetClientRect(g_detail, &r); SendMessage(g_detail, WM_SIZE, SIZE_RESTORED, MAKELPARAM(r.right, r.bottom)); }
+    RedrawWindow(g_main, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME);
 }
 
 // ---------------- hlavní okno ----------------
@@ -575,8 +644,8 @@ static void layoutPanes() {
     int detH = 0;
     if (g_detailVisible && g_loaded) { if (g_detailH <= 0) g_detailH = S(270); detH = imax(S(90), imin(g_detailH, bottom - top - S(120))); }
     int h = bottom - top - detH;
-    if (g_splitX < 0) g_splitX = rc.right * 52 / 100;
-    g_splitX = imax(S(150), imin(g_splitX, (int)rc.right - S(150)));
+    // omezení jen do g_splitX: úzké okno při startu (1280 px před maximalizací) ani zúžení nesmí trvale zmenšit zvolenou šířku
+    g_splitX = imax(S(150), imin(g_splitPref > 0 ? g_splitPref : (int)rc.right * 52 / 100, (int)rc.right - S(150)));
     if (g_loaded) { ShowWindow(g_list, SW_SHOW); MoveWindow(g_list, 0, top, g_splitX, h, TRUE); MoveWindow(g_gantt, g_splitX + SPLIT_W, top, rc.right - g_splitX - SPLIT_W, h, TRUE); }
     else { ShowWindow(g_list, SW_HIDE); MoveWindow(g_gantt, 0, top, rc.right, h, TRUE); }
     ShowWindow(g_detail, detH ? SW_SHOW : SW_HIDE);
@@ -693,7 +762,7 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         DragAcceptFiles(hwnd, TRUE); SetTimer(hwnd, 2, 2000, nullptr);
         return 0;
     }
-    case WM_SIZE: layout(); return 0;
+    case WM_SIZE: if (wp != SIZE_MINIMIZED) layout(); return 0; // minimalizované okno má nulovou šířku – příčka by se srazila na minimum
     case WM_GETMINMAXINFO: ((MINMAXINFO*)lp)->ptMinTrackSize = { S(760), S(400) }; return 0;
     case WM_CTLCOLORSTATIC: case WM_CTLCOLOREDIT: { HDC hdc = (HDC)wp; SetTextColor(hdc, T.ink); SetBkColor(hdc, msg == WM_CTLCOLOREDIT ? T.bg : T.panel); static HBRUSH bp, be; if (bp) DeleteObject(bp); if (be) DeleteObject(be); bp = CreateSolidBrush(T.panel); be = CreateSolidBrush(T.bg); return (LRESULT)(msg == WM_CTLCOLOREDIT ? be : bp); }
     case WM_ERASEBKGND: {
@@ -719,16 +788,17 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_MOUSEMOVE:
         if (g_dragSplit || g_dragDetail) {
-            int oldSplit = g_splitX, oldDetH = g_detailH;
-            if (g_dragSplit) g_splitX = GET_X_LPARAM(lp);
+            int oldSplit = g_splitPref, oldDetH = g_detailH;
+            if (g_dragSplit) g_splitPref = GET_X_LPARAM(lp);
             else { RECT rc, sr; GetClientRect(hwnd, &rc); GetWindowRect(g_status, &sr); g_detailH = imax(S(90), (int)rc.bottom - (sr.bottom - sr.top) - GET_Y_LPARAM(lp)); }
-            if (g_splitX == oldSplit && g_detailH == oldDetH) return 0; // posun oken pod kurzorem pošle další WM_MOUSEMOVE se stejnou pozicí
+            if (g_splitPref == oldSplit && g_detailH == oldDetH) return 0; // posun oken pod kurzorem pošle další WM_MOUSEMOVE se stejnou pozicí
             layoutPanes();
             // nakreslit hned, co posun odkryl – jinak při rychlém tažení Windows nestíhají kreslit a zůstávají staré pixely
             RedrawWindow(hwnd, nullptr, nullptr, RDW_UPDATENOW | RDW_ALLCHILDREN);
         }
         return 0;
     case WM_LBUTTONUP: if (g_dragSplit || g_dragDetail) { g_dragSplit = g_dragDetail = false; ReleaseCapture(); } return 0;
+    case WM_CAPTURECHANGED: g_dragSplit = g_dragDetail = false; return 0; // myš sebral dialog nebo Alt+Tab – tažení skončilo
     case WM_CONTEXTMENU: {
         if ((HWND)wp != g_list) break;
         POINT pt = { GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
@@ -760,6 +830,7 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     }
     case WM_APP + 1: syncColumnOrder(); return 0;
     case WM_APP + 2: rememberColumnWidths(); return 0;
+    case WM_APP_FILESTAT: { std::unique_ptr<FileStat> fs((FileStat*)lp); onFileStat(*fs); return 0; }
     case WM_TIMER: if (wp == 1) { KillTimer(hwnd, 1); applyFilterFromControls(); } else if (wp == 2) checkFileChanged(); return 0;
     case WM_DROPFILES: { wchar_t path[MAX_PATH]; if (DragQueryFileW((HDROP)wp, 0, path, MAX_PATH)) loadFile(path); DragFinish((HDROP)wp); return 0; }
     case WM_COMMAND: {
@@ -777,7 +848,7 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (id >= IDM_RECENT0 && id < IDM_RECENT0 + MAX_RECENT) { int i = id - IDM_RECENT0; if (i < (int)g_recent.size()) loadFile(g_recent[i]); return 0; }
         if (id >= IDM_TAB0 && id < IDM_TAB0 + 6) { setTab(id - IDM_TAB0); return 0; }
         if (id >= IDM_LEVEL1 && id < IDM_LEVEL1 + 6) { expandToLevel(id - IDM_LEVEL1 + 1); return 0; }
-        if (id >= IDM_COLOR_BASE && id < IDM_COLOR_BASE + 1 + (int)g_cols.size() + 1) { int ci = id - IDM_COLOR_BASE - 1; g_colorKey = ci < 0 ? L"" : g_cols[ci].key; rebuildColorMenu(); buildBarColors(); InvalidateRect(g_gantt, nullptr, FALSE); return 0; }
+        if (id >= IDM_COLOR_BASE && id <= IDM_COLOR_BASE + (int)g_cols.size()) { int ci = id - IDM_COLOR_BASE - 1; g_colorKey = ci < 0 ? L"" : g_cols[ci].key; rebuildColorMenu(); buildBarColors(); InvalidateRect(g_gantt, nullptr, FALSE); return 0; }
         if (id >= IDM_BASELINE_BASE && id <= IDM_BASELINE_BASE + 10) { g_baselineIdx = id - IDM_BASELINE_BASE; rebuildBaselineMenu(); InvalidateRect(g_gantt, nullptr, FALSE); return 0; }
         if (id >= IDM_VIEW_BASE && id < IDM_VIEW_BASE + 20) { int i = id - IDM_VIEW_BASE; if (i < (int)g_views.size() && g_loaded) applyView(g_views[i]); return 0; }
         switch (id) {
@@ -839,7 +910,20 @@ static LRESULT CALLBACK MainProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         break;
     }
     case WM_CLOSE: saveSettings(); DestroyWindow(hwnd); return 0;
+    case WM_ENDSESSION: if (wp) saveSettings(); return 0; // odhlášení / vypnutí Windows bez WM_CLOSE
+    case WM_DPICHANGED: {
+        onDpiChanged(HIWORD(wp));
+        const RECT* r = (const RECT*)lp; // navržená velikost pro nový monitor; při obnovení polohy ze startu platí uložená
+        if (!g_placing) SetWindowPos(hwnd, nullptr, r->left, r->top, r->right - r->left, r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
+        return 0;
+    }
     case WM_DESTROY: PostQuitMessage(0); return 0;
+    // po Alt+Tab nebo zavření dialogu vrátit fokus tam, kde byl (jinak zůstane na hlavním okně a klávesy v tabulce nefungují)
+    case WM_ACTIVATE: if (LOWORD(wp) == WA_INACTIVE) { HWND f = GetFocus(); if (f && IsChild(hwnd, f)) g_lastFocus = f; } break;
+    case WM_SETFOCUS:
+        if (g_lastFocus && IsWindow(g_lastFocus) && IsWindowVisible(g_lastFocus) && IsWindowEnabled(g_lastFocus)) SetFocus(g_lastFocus);
+        else if (g_loaded && g_tab == 0) SetFocus(g_list);
+        return 0;
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
@@ -888,12 +972,8 @@ int WINAPI wWinMain(_In_ HINSTANCE inst, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ i
 
     HWND hwnd = CreateWindowExW(0, L"MppViewMain", APP_TITLE, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT, CW_USEDEFAULT, S(1280), S(760), nullptr, menu, inst, nullptr);
     applyTheme();
-    std::wstring w = iniGet(L"Window"); int v[5] = { 0, 0, 0, 0, 1 };
-    if (swscanf(w.c_str(), L"%d,%d,%d,%d,%d", &v[0], &v[1], &v[2], &v[3], &v[4]) == 5 && v[2] - v[0] > 300 && v[3] - v[1] > 200) { WINDOWPLACEMENT wp = { sizeof(wp) }; wp.rcNormalPosition = { v[0], v[1], v[2], v[3] }; wp.showCmd = v[4] ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL; SetWindowPlacement(hwnd, &wp); }
-    else ShowWindow(hwnd, show == SW_SHOWMINIMIZED ? SW_SHOW : SW_SHOWMAXIMIZED);
-    setTab(0); syncScaleCombo();
 
-    // Argumenty: soubor [--csv x] [--xlsx x] [--png x] [--pdf x] -> bez okna, jen export
+    // Argumenty: soubor [--csv x] [--xlsx x] [--png x] [--pdf x] -> bez okna, jen export (okno se proto ukazuje až potom)
     int argc = 0; LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
     std::wstring arg, csvOut, pngOut, pdfOut, xlsxOut;
     for (int i = 1; argv && i < argc; i++) {
@@ -902,6 +982,19 @@ int WINAPI wWinMain(_In_ HINSTANCE inst, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ i
     }
     if (argv) LocalFree(argv);
     g_batch = !csvOut.empty() || !pngOut.empty() || !pdfOut.empty() || !xlsxOut.empty();
+
+    if (!g_batch) {
+        std::wstring w = iniGet(L"Window"); int v[5] = { 0, 0, 0, 0, 1 };
+        if (swscanf(w.c_str(), L"%d,%d,%d,%d,%d", &v[0], &v[1], &v[2], &v[3], &v[4]) == 5 && v[2] - v[0] > 300 && v[3] - v[1] > 200) {
+            WINDOWPLACEMENT wp = { sizeof(wp) }; wp.rcNormalPosition = { v[0], v[1], v[2], v[3] }; wp.showCmd = v[4] ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
+            g_placing = true; SetWindowPlacement(hwnd, &wp); g_placing = false;
+        }
+        else ShowWindow(hwnd, show == SW_SHOWMINIMIZED ? SW_SHOW : SW_SHOWMAXIMIZED);
+        // okno může ležet na monitoru s jiným měřítkem, než mělo Windows při přihlášení (z toho je g_dpi)
+        typedef UINT(WINAPI* PGetDpi)(HWND);
+        if (PGetDpi f = (PGetDpi)GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow")) onDpiChanged((int)f(hwnd));
+    }
+    setTab(0); syncScaleCombo();
     if (!arg.empty()) loadFile(arg);
     if (!csvOut.empty() || !pngOut.empty() || !pdfOut.empty() || !xlsxOut.empty()) {
         int rc = g_loaded ? 0 : 2;
