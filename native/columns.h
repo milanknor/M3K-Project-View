@@ -93,7 +93,7 @@ static void buildColumns() {
     addCol(L"baselineDuration", L"Doba (směrný plán)", CAT_BASELINE, 105, true, [&p](const mpp::Task& t, int) { return mpp::fmtDuration(t.baselines[0].duration, p); }, [](const mpp::Task& t, int) { return dnum(t.baselines[0].duration); });
     addCol(L"baselineWork", L"Práce (směrný plán)", CAT_BASELINE, 105, true, [](const mpp::Task& t, int) { return mpp::fmtHours(t.baselines[0].workHours); }, [](const mpp::Task& t, int) { return zero0(t.baselines[0].workHours); });
     addCol(L"baselineCost", L"Náklady (směrný plán)", CAT_BASELINE, 115, true, [&p](const mpp::Task& t, int) { return mpp::fmtMoney(t.baselines[0].cost, p); }, [](const mpp::Task& t, int) { return zero0(t.baselines[0].cost); });
-    addCol(L"startVariance", L"Odchylka zahájení", CAT_BASELINE, 105, true, [](const mpp::Task& t, int) { if (!t.start || !t.baselineStartV()) return std::wstring(); int64_t d = g_prj.calendar().workingDaysBetween(mpp::toUnixDays(t.baselineStartV()), mpp::toUnixDays(t.start)); return (d > 0 ? L"+" : L"") + std::to_wstring(d); }, [](const mpp::Task& t, int) { return t.start && t.baselineStartV() ? (double)(mpp::toUnixDays(t.start) - mpp::toUnixDays(t.baselineStartV())) : NONUM; });
+    addCol(L"startVariance", L"Odchylka zahájení", CAT_BASELINE, 105, true, [](const mpp::Task& t, int) { if (!t.start || !t.baselineStartV()) return std::wstring(); int64_t d = g_prj.calendar().workingDaysBetween(mpp::toUnixDays(t.baselineStartV()), mpp::toUnixDays(t.start)); return (d > 0 ? L"+" : L"") + std::to_wstring(d); }, [](const mpp::Task& t, int) { return t.start && t.baselineStartV() ? (double)g_prj.calendar().workingDaysBetween(mpp::toUnixDays(t.baselineStartV()), mpp::toUnixDays(t.start)) : NONUM; }); // řadit stejně, jak se zobrazuje (pracovní dny)
     addCol(L"freeSlack", L"Volná rezerva", CAT_SLACK, 95, true, [&p](const mpp::Task& t, int) { return t.summary ? L"" : mpp::fmtSlackRaw(t.freeSlackRaw, p); }, [](const mpp::Task& t, int) { return snum(t.freeSlackRaw); });
     addCol(L"critical", L"Kritický", CAT_SLACK, 65, false, [](const mpp::Task& t, int) { return t.critical ? L"ano" : L""; }, [](const mpp::Task& t, int) { return t.critical ? 1.0 : 0.0; });
     addCol(L"milestone", L"Milník", CAT_OTHER, 60, false, [](const mpp::Task& t, int) { return t.milestone ? L"ano" : L""; }, [](const mpp::Task& t, int) { return t.milestone ? 1.0 : 0.0; });
@@ -160,7 +160,8 @@ static void buildBarColors() {
     g_colorMap.clear(); g_legend.clear();
     int col = colIndex(g_colorKey); if (col < 0) return;
     std::map<std::wstring, int> counts;
-    for (int r : g_rows) { const mpp::Task& t = g_prj.tasks[r]; if (t.isNull || t.summary) continue; std::wstring v = colorValue(t, r, col); if (!v.empty()) counts[v]++; }
+    // pořadí barev podle všech úkolů vyhovujících filtru, ne jen viditelných řádků – jinak se barvy přehazovaly při sbalení souhrnu
+    for (size_t r = 0; r < g_prj.tasks.size() && r < g_keep.size(); r++) { const mpp::Task& t = g_prj.tasks[r]; if (!g_keep[r] || t.isNull || t.summary) continue; std::wstring v = colorValue(t, (int)r, col); if (!v.empty()) counts[v]++; }
     std::vector<std::pair<std::wstring, int>> sorted(counts.begin(), counts.end());
     std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) { return a.second != b.second ? a.second > b.second : collate(a.first, b.first) < 0; });
     bool others = false;

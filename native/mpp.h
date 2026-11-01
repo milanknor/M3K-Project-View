@@ -27,6 +27,7 @@
 #include "model.h"
 #include "cfb.h"
 #include <functional>
+#include <unordered_map>
 
 namespace mpp {
 
@@ -207,6 +208,8 @@ struct FixedData {
         FixedData f;
         size_t n = meta.items.size();
         f.items.resize(n); f.offsets.assign(n, -1);
+        // položky platného souboru se nepřekrývají; poškozený soubor s překryvy by jinak nakopíroval desítky GB
+        size_t total = 0; const size_t budget = buf.size() * 4 + ((size_t)64 << 20);
         for (size_t loop = 0; loop < n; loop++) {
             int itemOffset = i32(meta.items[loop], 4);
             if (itemOffset < 0 || (size_t)itemOffset > buf.size()) continue;
@@ -215,7 +218,7 @@ struct FixedData {
             int available = (int)buf.size() - itemOffset;
             if (itemSize < 0 || itemSize > available) itemSize = maxExpected == 0 ? available : std::min(maxExpected, available);
             if (maxExpected != 0 && itemSize > maxExpected) itemSize = maxExpected;
-            if (itemSize > 0) { f.items[loop] = sub(buf, itemOffset, itemSize); f.offsets[loop] = itemOffset; }
+            if (itemSize > 0) { if ((total += (size_t)itemSize) > budget) break; f.items[loop] = sub(buf, itemOffset, itemSize); f.offsets[loop] = itemOffset; }
         }
         return f;
     }
@@ -239,7 +242,12 @@ struct FixedData {
         return f;
     }
     const Bytes* get(int i) const { return i >= 0 && i < (int)items.size() && offsets[i] >= 0 ? &items[i] : nullptr; }
-    int indexFromOffset(int off) const { for (size_t i = 0; i < offsets.size(); i++) if (offsets[i] == off) return (int)i; return -1; }
+    // index podle offsetu: mapa se postaví při prvním dotazu (dřív lineární hledání pro každou vazbu a přiřazení = O(n²))
+    mutable std::unordered_map<int, int> byOffset;
+    int indexFromOffset(int off) const {
+        if (byOffset.empty()) for (size_t i = offsets.size(); i-- > 0;) if (offsets[i] >= 0) byOffset[offsets[i]] = (int)i; // pozpátku: při shodě platí první
+        auto it = byOffset.find(off); return it == byOffset.end() ? -1 : it->second;
+    }
 };
 
 // ---------- VarMeta / Var2Data ----------
@@ -275,11 +283,13 @@ struct Var2Data {
     const VarMeta* meta = nullptr;
     static Var2Data parse(const VarMeta& meta, const Bytes& d) {
         Var2Data v; v.meta = &meta;
+        size_t total = 0; const size_t budget = d.size() * 4 + ((size_t)64 << 20); // viz FixedData::fromMeta – překryvy jen v poškozeném souboru
         for (int off : meta.offsets) {
             if (off < 0 || (size_t)off >= d.size()) continue;
             if (v.m.count(off)) continue;
             int size = i32(d, off);
             if (size < 0 || (size_t)size > d.size() - off - 4) continue;
+            if ((total += (size_t)size) > budget) break;
             v.m[off] = sub(d, off + 4, size);
         }
         return v;
@@ -441,12 +451,14 @@ struct Ctx {
     bool fixedOk(const FieldItem* it, size_t need) const {
         return it && it->loc == L_FIXED && it->block < 2 && blk[it->block] && (size_t)it->offset + need <= blk[it->block]->size();
     }
-    const Bytes* var(const FieldItem* it) const {
+    // lookup: hodnota může být odkaz do číselníku vlastního pole. U textových standardních polí (název, WBS, zdroj…)
+    // se nekontroluje – text začínající „Ё“ (U+0401) by se jinak zahodil a zdroj i s přiřazeními vypadl.
+    const Bytes* var(const FieldItem* it, bool lookup = true) const {
         if (!it || it->loc != L_VAR) return nullptr;
         const Bytes* d = vd.get(uid, it->varKey);
         if (!d) return nullptr;
         int flag = u16(*d, 0);
-        if (flag == 0x0701 || flag == 0x0401) return nullptr; // odkaz do číselníku vlastního pole - nepodporujeme
+        if (lookup && (flag == 0x0701 || flag == 0x0401)) return nullptr; // odkaz do číselníku vlastního pole - nepodporujeme
         return d;
     }
     Time date(int id) const {
@@ -470,8 +482,8 @@ struct Ctx {
     }
     bool present(int id) const { const FieldItem* it = fm.item(id); return fixedOk(it, 2) || var(it) != nullptr; }
     int pct(int id) const { int v = shortv(id); return (v >= 0 && v <= 100) ? v : -1; }
-    std::wstring str(int id) const { const Bytes* d = var(fm.item(id)); return d ? ustr(*d) : L""; }
-    bool hasStr(int id) const { return var(fm.item(id)) != nullptr; }
+    std::wstring str(int id, bool lookup = false) const { const Bytes* d = var(fm.item(id), lookup); return d ? ustr(*d) : L""; }
+    bool hasStr(int id) const { return var(fm.item(id), false) != nullptr; }
     std::wstring notes(int id) const { const Bytes* d = var(fm.item(id)); if (!d) return L""; return rtfToText(astr(*d, 0, d->size())); }
     Duration dur(int id, int unitsId) const {
         Duration r;
@@ -565,8 +577,6 @@ inline bool nthWeekdayMatch(int64_t ud, int y, unsigned m, unsigned d, int dayOf
 }
 inline bool exceptionMatches(const CalException& e, int64_t ud) {
     if (ud < e.from || ud > e.to) return false;
-    int y; unsigned m, d; civilFromDays(ud, y, m, d);
-    int fy; unsigned fm, fd; civilFromDays(e.from, fy, fm, fd);
     switch (e.rec) {
     case 0: case 1: return true;
     case 7: return e.freq <= 1 || (ud - e.from) % e.freq == 0;
@@ -577,34 +587,51 @@ inline bool exceptionMatches(const CalException& e, int64_t ud) {
         int64_t w0 = e.from - (int64_t)((dowOfUnixDay(e.from) + 1) % 7);
         return ((ud - w0) / 7) % e.freq == 0;
     }
-    case 4: { if ((int)d != e.dayNumber) return false; int months = (y - fy) * 12 + ((int)m - (int)fm); return e.freq <= 1 || months % e.freq == 0; }
-    case 5: { if (!nthWeekdayMatch(ud, y, m, d, e.dayOfWeek, e.dayNumber)) return false; int months = (y - fy) * 12 + ((int)m - (int)fm); return e.freq <= 1 || months % e.freq == 0; }
-    case 2: return (int)m == e.month && (int)d == e.dayNumber;
-    case 3: return (int)m == e.month && nthWeekdayMatch(ud, y, m, d, e.dayOfWeek, e.dayNumber);
+    case 2: case 3: case 4: case 5: break; // měsíční a roční: níž, potřebují kalendářní datum
     default: return true;
     }
+    int y; unsigned m, d; civilFromDays(ud, y, m, d);
+    if ((e.rec == 2 || e.rec == 3) && (int)m != e.month) return false;
+    if (e.rec == 2 || e.rec == 4) { // „31. den v měsíci“ připadne v kratším měsíci na poslední den (MPXJ RecurringData), 29. 2. mimo přestupný rok na 28. 2.
+        int dim = (int)(daysFromCivil(m == 12 ? y + 1 : y, m == 12 ? 1 : m + 1, 1) - daysFromCivil(y, m, 1));
+        if ((int)d != std::min(e.dayNumber, dim)) return false;
+    } else if (!nthWeekdayMatch(ud, y, m, d, e.dayOfWeek, e.dayNumber)) return false;
+    if (e.rec == 2 || e.rec == 3 || e.freq <= 1) return true; // roční se neopakují po víc letech
+    int fy; unsigned fm, fd; civilFromDays(e.from, fy, fm, fd);
+    return ((y - fy) * 12 + ((int)m - (int)fm)) % e.freq == 0;
 }
 // Pořadí výjimek rozhoduje (platí první vyhovující), rozsah 1984-2099.
-inline void expandCalendar(Calendar& c) {
+// budget = kolik dnů smí projít celý projekt: poškozený soubor s tisíci výjimkami přes 116 let by jinak počítal hodiny.
+inline void expandCalendar(Calendar& c, int64_t& budget) {
     const int64_t lo = daysFromCivil(1984, 1, 1), hi = daysFromCivil(2099, 12, 31);
     std::map<int64_t, int> m;
-    for (size_t i = 0; i < c.exceptions.size(); i++) {
+    for (size_t i = 0; i < c.exceptions.size() && budget > 0; i++) {
         const CalException& e = c.exceptions[i];
-        for (int64_t d = std::max(e.from, lo); d <= std::min(e.to, hi); d++) if (exceptionMatches(e, d)) m.emplace(d, (int)i);
+        int64_t from = std::max(e.from, lo), to = std::min(e.to, hi);
+        auto scan = [&](int64_t a, int64_t b) { for (int64_t d = std::max(a, from); d <= std::min(b, to) && --budget >= 0; d++) if (exceptionMatches(e, d)) m.emplace(d, (int)i); };
+        if ((e.rec == 2 || e.rec == 3) && e.month >= 1 && e.month <= 12 && from <= to) { // roční svátky: jen daný měsíc každého roku (12× méně dnů)
+            int fy, ty; unsigned x, z; civilFromDays(from, fy, x, z); civilFromDays(to, ty, x, z);
+            unsigned mo = (unsigned)e.month;
+            for (int y = fy; y <= ty && budget > 0; y++) scan(daysFromCivil(y, mo, 1), daysFromCivil(mo == 12 ? y + 1 : y, mo == 12 ? 1 : mo + 1, 1) - 1);
+        } else scan(from, to);
     }
     c.days.clear(); c.days.reserve(m.size());
     for (auto& kv : m) c.days.push_back({ kv.first, kv.second });
 }
+inline void expandCalendar(Calendar& c) { int64_t budget = 50000000; expandCalendar(c, budget); }
 
 // ---------- společné doformátování projektu (MPP i XML) ----------
 inline void finalizeProject(Project& p) {
-    for (Calendar& c : p.calendars) expandCalendar(c);
-    expandCalendar(p.builtin);
-    for (Task& t : p.tasks) if (t.uid == 0 && t.isNull && !t.nameSet && t.level == 0 && t.start) { t.isNull = false; t.nameSet = true; t.name = p.title; } // projektový souhrn bez jména (XML)
+    int64_t budget = 50000000; // dnů pro všechny kalendáře dohromady (platný soubor jich má nejvýš jednotky milionů)
+    expandCalendar(p.builtin, budget);
+    for (Calendar& c : p.calendars) expandCalendar(c, budget);
+    for (Task& t : p.tasks) if (t.uid == 0 && !t.nameSet && t.level == 0 && t.start) { t.isNull = false; t.nameSet = true; t.name = p.title; } // projektový souhrn bez jména (XML)
     std::stable_sort(p.tasks.begin(), p.tasks.end(), [](const Task& a, const Task& b) { return a.id < b.id; });
     p.reindex();
     p.roots.clear();
-    for (Task& t : p.tasks) { t.children.clear(); t.parent = -1; }
+    // úroveň 0–100: dítě má vždy vyšší úroveň než rodič, takže strom má nejvýš 101 pater a rekurze
+    // (číslování osnovy, tabulka) nepřeteče zásobník ani u poškozeného souboru s tisíci úrovněmi
+    for (Task& t : p.tasks) { t.children.clear(); t.parent = -1; t.level = std::max(0, std::min(t.level, 100)); }
     // Hierarchie podle úrovní osnovy (port TaskContainer.updateStructure)
     int lastIdx = -1, lastLevel = -1;
     for (size_t i = 0; i < p.tasks.size(); i++) {
@@ -642,6 +669,7 @@ inline void finalizeProject(Project& p) {
         }
     };
     std::set<int> hasSucc; for (const Task& t : p.tasks) for (const Relation& r : t.preds) hasSucc.insert(r.predUid);
+    std::unordered_map<int, const Calendar*> calByUid; for (const Calendar& c : p.calendars) calByUid.emplace(c.uid, &c); // emplace: první se stejným uid jako calendarByUid
     for (Task& t : p.tasks) {
         t.summary = !t.children.empty();
         if (t.totalSlackRaw == INT32_MIN && t.finishSlackRaw != INT32_MIN)
@@ -649,7 +677,7 @@ inline void finalizeProject(Project& p) {
         if (!t.criticalFromFile && !t.isNull && !t.summary && t.actualFinish == 0 && t.pctComplete != 100 && t.totalSlackRaw != INT32_MIN)
             t.critical = t.totalSlackRaw <= limitRaw // port Task.calculateCritical
                 && !(t.manual && t.estimated && t.preds.empty() && !hasSucc.count(t.uid)); // MS Project: ruční odhadovaný úkol bez vazeb není kritický (ověřeno na 1100 úkolech z XML sady MPXJ)
-        if (t.calendarUid > 0) { const Calendar* c = p.calendarByUid(t.calendarUid); if (c) t.calendarName = c->name; }
+        if (t.calendarUid > 0) { auto c = calByUid.find(t.calendarUid); if (c != calByUid.end()) t.calendarName = c->second->name; }
     }
     { int n = 0; for (int r : p.roots) { Task& t = p.tasks[r]; if (t.isNull) continue; if (t.level == 0 && p.roots.size() == 1) { t.outlineNumber = L"0"; numberTree(r, L""); } else { n++; if (t.outlineNumber.empty()) t.outlineNumber = std::to_wstring(n); numberTree(r, t.outlineNumber); } } }
     // Vazby na vlastního předka jsou neplatné
@@ -859,6 +887,9 @@ inline Project readMpp(const std::wstring& path) {
     std::map<int, int> nullOrder;
     std::map<int64_t, int> order;
     std::vector<Task> tasks;
+    // ID -> indexy nenulových úkolů v pořadí vložení (dřív hledání duplicit v celém vektoru = O(n²) u velkých souborů);
+    // vyřazený duplikát dostane uid INT_MIN a smaže se až po smyčce, aby indexy platily
+    std::unordered_map<int, std::vector<size_t>> nonNullById;
 
     for (auto& kv : taskMap) {
         int uid = kv.first, off = kv.second;
@@ -875,10 +906,11 @@ inline Project readMpp(const std::wstring& path) {
         const Bytes* meta2 = f2meta.get(off);
         const Bytes* data2 = f2data.get(off);
 
-        auto dup = std::find_if(tasks.begin(), tasks.end(), [&](const Task& t) { return !t.isNull && t.id == id; });
-        if (dup != tasks.end()) {
+        auto dup = nonNullById.find(id);
+        if (dup != nonNullById.end() && !dup->second.empty()) {
             if (!vm.has(uid)) continue;
-            if (!dup->nameSet) tasks.erase(dup);
+            size_t di = dup->second.front();
+            if (!tasks[di].nameSet) { tasks[di].uid = INT_MIN; dup->second.erase(dup->second.begin()); }
         }
 
         Task t; t.uid = uid; t.id = id;
@@ -920,7 +952,7 @@ inline Project readMpp(const std::wstring& path) {
         for (const CustomDef& d : customDefs()) {
             CustomValue v;
             switch (d.kind) {
-            case CK_TEXT: v.text = c.str(d.id); v.set = !v.text.empty(); break;
+            case CK_TEXT: v.text = c.str(d.id, true); v.set = !v.text.empty(); break;
             case CK_NUMBER: if (c.hasDbl(d.id)) { v.num = c.dbl(d.id); v.set = std::fabs(v.num) > 1e-9; } break;
             case CK_COST: if (c.hasDbl(d.id)) { v.num = c.money(d.id); v.set = std::fabs(v.num) > 1e-9; } break;
             case CK_DATE: case CK_START: case CK_FINISH: v.date = c.date(d.id); v.set = v.date != 0; break;
@@ -962,8 +994,10 @@ inline Project readMpp(const std::wstring& path) {
 
         if (!data2 || data2->size() < 24) nullOrder[t.id] = t.uid;
         else order[i64(*data2, 16)] = t.uid;
+        nonNullById[id].push_back(tasks.size());
         tasks.push_back(t);
     }
+    tasks.erase(std::remove_if(tasks.begin(), tasks.end(), [](const Task& t) { return t.uid == INT_MIN; }), tasks.end()); // vyřazené duplikáty
 
     {   // Přečíslování ID podle řadicího klíče (opravuje duplicitní ID)
         std::map<int, int> idMap;

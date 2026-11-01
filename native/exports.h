@@ -77,7 +77,7 @@ struct Xlsx { // port XlsxWriter.java
     }
     void newRow() { if (row > 0) cur += "</row>"; row++; col = 0; cur += "<row r=\"" + std::to_string(row) + "\">"; }
     void cellOpen(Style s) { col++; maxCol = imax(maxCol, col); cur += "<c r=\"" + colName(col) + std::to_string(row) + "\" s=\"" + std::to_string((int)s) + "\""; }
-    void text(const std::wstring& v, Style s = TEXT) { cellOpen(s); if (v.empty()) { cur += "/>"; return; } cur += " t=\"inlineStr\"><is><t xml:space=\"preserve\">" + xmlEsc(v) + "</t></is></c>"; }
+    void text(const std::wstring& v, Style s = TEXT) { cellOpen(s); if (v.empty()) { cur += "/>"; return; } cur += " t=\"inlineStr\"><is><t xml:space=\"preserve\">" + xmlEsc(v.size() > 32767 ? v.substr(0, 32767) : v) + "</t></is></c>"; } // delší buňku Excel „opravuje“
     void number(double v, Style s = NUMBER) { cellOpen(s); if (std::isnan(v)) { cur += "/>"; return; } char b[40]; if (v == std::round(v) && std::fabs(v) < 1e15) snprintf(b, 40, "%lld", (long long)v); else snprintf(b, 40, "%.6f", v); cur += std::string("><v>") + b + "</v></c>"; }
     void date(Time t) { cellOpen(DATE); if (!t) { cur += "/>"; return; } double serial = (double)(mpp::toUnixDays(t) + 25569) + (t % 86400) / 86400.0; char b[40]; snprintf(b, 40, "%.6f", serial); cur += std::string("><v>") + b + "</v></c>"; }
     void header(const std::vector<std::wstring>& titles) { newRow(); for (auto& t : titles) text(t, HEADER); }
@@ -151,17 +151,16 @@ static int pngEncoderClsid(CLSID* out) {
     return -1;
 }
 // Vykreslí stránku sestavy do 24bpp DIB; vrací HBITMAP (volající uvolní)
-static HBITMAP renderPageBitmap(int w, int h, int dpi, std::function<void(HDC, RECT)> draw) {
+// Kreslí se 1:1 v pixelech obrázku; velikost písma a řádků určuje DPI předané do renderReport, ne obrazovka.
+// (Dřívější přepočet MM_ANISOTROPIC podle DPI obrazovky při 125–150 % ořezával graf a v PDF dělal nerovné mezery v textu.)
+static HBITMAP renderPageBitmap(int w, int h, std::function<void(HDC, RECT)> draw) {
     HDC sdc = GetDC(nullptr); HDC mem = CreateCompatibleDC(sdc);
     BITMAPINFO bi = {}; bi.bmiHeader.biSize = sizeof(bi.bmiHeader); bi.bmiHeader.biWidth = w; bi.bmiHeader.biHeight = -h; bi.bmiHeader.biPlanes = 1; bi.bmiHeader.biBitCount = 24; bi.bmiHeader.biCompression = BI_RGB;
     void* bits = nullptr; HBITMAP bmp = CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, nullptr, 0);
     if (!bmp) { DeleteDC(mem); ReleaseDC(nullptr, sdc); return nullptr; } // málo paměti: volající ohlásí chybu exportu
     HGDIOBJ old = SelectObject(mem, bmp);
     RECT full = { 0, 0, w, h }; FillRect(mem, &full, (HBRUSH)GetStockObject(WHITE_BRUSH));
-    // GDI vykreslí v logických px; renderReport si DPI čte z DC (obrazovkové) - přizpůsobíme přes SetWindowExtEx/SetViewportExtEx
-    SetMapMode(mem, MM_ANISOTROPIC); SetWindowExtEx(mem, w * GetDeviceCaps(sdc, LOGPIXELSX) / dpi, h * GetDeviceCaps(sdc, LOGPIXELSX) / dpi, nullptr); SetViewportExtEx(mem, w, h, nullptr);
-    RECT area = { 0, 0, w * GetDeviceCaps(sdc, LOGPIXELSX) / dpi, h * GetDeviceCaps(sdc, LOGPIXELSX) / dpi };
-    draw(mem, area);
+    draw(mem, full);
     SelectObject(mem, old); DeleteDC(mem); ReleaseDC(nullptr, sdc);
     return bmp;
 }
@@ -177,18 +176,26 @@ static std::string pngBytes(HBITMAP bmp) {
     st->Release();
     return out;
 }
+// Filtr nebo hledání skryly všechny úkoly: PNG, PDF a tisk by jinak tiše neudělaly nic
+static bool hasRowsToExport(const wchar_t* path) {
+    if (g_loaded && g_rows.empty() && !path && !g_batch) MessageBoxW(g_main, L"Nejsou zobrazené žádné úkoly – zkontrolujte filtr nebo hledání.", APP_TITLE, MB_ICONINFORMATION);
+    return g_loaded && !g_rows.empty();
+}
 static bool exportPng(const wchar_t* path = nullptr) {
-    if (!g_loaded || g_rows.empty()) return false;
+    if (!hasRowsToExport(path)) return false;
     wchar_t buf[MAX_PATH]; if (!fillPath(buf, path, baseName() + L".png")) return false;
     if (!path && !saveDialog(buf, L"Obrázek PNG\0*.png\0", L"png", L"Export harmonogramu do PNG (zobrazené řádky, celý projekt)")) return false;
     int rows = imin((int)g_rows.size(), 4000);
     int w = 2400, h = 22 + 4 + 30 + rows * 18 + 34;
-    HBITMAP bmp = renderPageBitmap(w, h, 96, [&](HDC hdc, RECT a) { RECT area = { 10, 6, a.right - 10, a.bottom - 4 }; renderReport(hdc, area, 0, rows, 1, 1); });
+    HBITMAP bmp = renderPageBitmap(w, h, [&](HDC hdc, RECT a) { RECT area = { 10, 6, a.right - 10, a.bottom - 4 }; renderReport(hdc, area, 0, rows, 1, 1, 96); }); // 96: rozměry výše (18 px na řádek)
     Gdiplus::Bitmap gb(bmp, nullptr); CLSID clsid;
     bool ok = pngEncoderClsid(&clsid) == 0 && gb.Save(buf, &clsid, nullptr) == Gdiplus::Ok;
     DeleteObject(bmp);
     if (path) return ok;
-    if (!ok) msgError(L"Obrázek se nepodařilo uložit."); else ShellExecuteW(nullptr, L"open", buf, nullptr, nullptr, SW_SHOWNORMAL);
+    if (!ok) { msgError(L"Obrázek se nepodařilo uložit."); return ok; }
+    if ((int)g_rows.size() > rows) // víc řádků by dalo obrázek přes půl GB
+        MessageBoxW(g_main, (L"Obrázek obsahuje prvních " + std::to_wstring(rows) + L" z " + std::to_wstring(g_rows.size()) + L" zobrazených řádků. Celý harmonogram uložte do PDF.").c_str(), APP_TITLE, MB_ICONINFORMATION);
+    ShellExecuteW(nullptr, L"open", buf, nullptr, nullptr, SW_SHOWNORMAL);
     return ok;
 }
 // PDF: každá stránka = obrázek; data přebíráme z PNG (IDAT = zlib deflate s PNG prediktory) -> /FlateDecode s /Predictor 15
@@ -240,7 +247,7 @@ static void pageSplit(int ph, int dpi, int margin, int& perPage, int& pages) {
     pages = ((int)g_rows.size() + perPage - 1) / perPage;
 }
 static bool exportPdf(const wchar_t* path = nullptr, bool a3 = false) {
-    if (!g_loaded || g_rows.empty()) return false;
+    if (!hasRowsToExport(path)) return false;
     if (!path) { // volba formátu
         Dlg d; dlgCreate(d, L"Uložit do PDF", 300, 120);
         dlgLabel(d.h, L"Formát stránky (na šířku):", 12, 12, 270);
@@ -257,7 +264,8 @@ static bool exportPdf(const wchar_t* path = nullptr, bool a3 = false) {
     bool ok = false;
     try {
         ok = writePdf(buf, pages, wpt, hpt, [&](int pg) {
-            return renderPageBitmap(pw, ph, 96, [&](HDC hdc, RECT) { RECT area = { margin, margin, pw - margin, ph - margin }; renderReport(hdc, area, pg * perPage, imin((int)g_rows.size(), (pg + 1) * perPage), pg + 1, pages); });
+            // sestava v DPI stránky (150) – stejně jako pageSplit; dřív v 96 DPI, takže stránka byla zaplněná jen ze 60 % a písmo malé
+            return renderPageBitmap(pw, ph, [&](HDC hdc, RECT) { RECT area = { margin, margin, pw - margin, ph - margin }; renderReport(hdc, area, pg * perPage, imin((int)g_rows.size(), (pg + 1) * perPage), pg + 1, pages, dpi); });
         }, baseName());
     } catch (const std::exception&) { ok = false; } // např. málo paměti – hlášení níže
     if (path) return ok;
@@ -265,12 +273,12 @@ static bool exportPdf(const wchar_t* path = nullptr, bool a3 = false) {
     return ok;
 }
 static void printReport() {
-    if (!g_loaded || g_rows.empty()) return;
+    if (!hasRowsToExport(nullptr)) return;
     PRINTDLGW pd = { sizeof(pd) };
     pd.hwndOwner = g_main; pd.Flags = PD_RETURNDEFAULT;
     if (PrintDlgW(&pd) && pd.hDevMode) { DEVMODEW* dm = (DEVMODEW*)GlobalLock(pd.hDevMode); if (dm) { dm->dmFields |= DM_ORIENTATION; dm->dmOrientation = DMORIENT_LANDSCAPE; GlobalUnlock(pd.hDevMode); } }
     pd.Flags = PD_RETURNDC | PD_NOSELECTION | PD_NOPAGENUMS | PD_USEDEVMODECOPIESANDCOLLATE;
-    if (!PrintDlgW(&pd) || !pd.hDC) return;
+    if (!PrintDlgW(&pd) || !pd.hDC) { if (pd.hDevMode) GlobalFree(pd.hDevMode); if (pd.hDevNames) GlobalFree(pd.hDevNames); return; } // Zrušit
     HDC hdc = pd.hDC;
     int pw = GetDeviceCaps(hdc, HORZRES), ph = GetDeviceCaps(hdc, VERTRES), dpi = GetDeviceCaps(hdc, LOGPIXELSX);
     int margin = MulDiv(40, dpi, 96), perPage = 1, pages = 1; pageSplit(ph, dpi, margin, perPage, pages);

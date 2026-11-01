@@ -7,7 +7,8 @@ cd /d "%~dp0"
 if not exist out mkdir out
 rem /sdl = rozsirene bezpecnostni kontroly, /guard:cf = Control Flow Guard (ochrana proti zneuziti chyb v pameti)
 set CL_FLAGS=/nologo /std:c++17 /EHsc /O1 /Os /MT /GL /utf-8 /W3 /sdl /guard:cf /DUNICODE /D_UNICODE /DNDEBUG /Foout\
-set LINK_FLAGS=/LTCG /OPT:REF /OPT:ICF /guard:cf /DYNAMICBASE /NXCOMPAT /HIGHENTROPYVA
+rem /MANIFEST:EMBED = manifest (vzhled Windows, asInvoker) primo v EXE; samostatny .manifest instalator nekopiroval
+set LINK_FLAGS=/LTCG /OPT:REF /OPT:ICF /guard:cf /DYNAMICBASE /NXCOMPAT /HIGHENTROPYVA /MANIFEST:EMBED
 rc /nologo /fo out\mppread.res mppread.rc
 if errorlevel 1 exit /b 1
 cl %CL_FLAGS% /LD mppread.cpp /Feout\mppread.dll /link out\mppread.res %LINK_FLAGS%

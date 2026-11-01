@@ -9,7 +9,8 @@ inline Project loadProject(const std::wstring& path) {
     static HMODULE h = nullptr; static MppRead_Open_t fOpen = nullptr; static MppRead_Free_t fFree = nullptr;
     if (!h) {
         // jen z adresáře programu (ne z aktuálního adresáře - ochrana proti podvržené DLL)
-        wchar_t exe[MAX_PATH] = {}; GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        wchar_t exe[MAX_PATH] = {}; DWORD n = GetModuleFileNameW(nullptr, exe, MAX_PATH);
+        if (n == 0 || n >= MAX_PATH) throw std::runtime_error("Cesta k programu je prilis dlouha."); // useknutá cesta by ukázala do nadřazené složky
         std::wstring dll = exe; dll = dll.substr(0, dll.find_last_of(L"\\/") + 1) + L"mppread.dll";
         // závislosti knihovny (xmllite, shlwapi…) jen ze System32 – podvržená DLL vedle programu se nenačte
         HMODULE m = LoadLibraryExW(dll.c_str(), nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);

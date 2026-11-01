@@ -16,14 +16,16 @@ struct XmlWalker {
     std::vector<std::wstring> path; std::wstring text; bool leafClosed = false;
     ~XmlWalker() { if (rd) rd->Release(); if (st) st->Release(); }
     void open(const std::wstring& file) {
+        WIN32_FILE_ATTRIBUTE_DATA fa = {}; // stejný strop jako u .mpp (Cfb::MAX_FILE) – skutečné XML mají desítky MB
+        if (GetFileAttributesExW(file.c_str(), GetFileExInfoStandard, &fa) && (fa.nFileSizeHigh || fa.nFileSizeLow > 512u * 1024 * 1024)) throw std::runtime_error("Soubor je prilis velky");
         if (FAILED(SHCreateStreamOnFileW(file.c_str(), STGM_READ | STGM_SHARE_DENY_WRITE, &st))) throw std::runtime_error("Soubor nelze otevrit");
         if (FAILED(CreateXmlReader(__uuidof(IXmlReader), (void**)&rd, nullptr))) throw std::runtime_error("XmlLite neni k dispozici");
         rd->SetProperty(XmlReaderProperty_DtdProcessing, DtdProcessing_Prohibit);
         if (FAILED(rd->SetInput(st))) throw std::runtime_error("XML nelze cist");
     }
     int next() {
-        XmlNodeType nt;
-        while (S_OK == rd->Read(&nt)) {
+        XmlNodeType nt; HRESULT hr;
+        while ((hr = rd->Read(&nt)) == S_OK) {
             if (nt == XmlNodeType_Element) {
                 const wchar_t* ln = nullptr; rd->GetLocalName(&ln, nullptr);
                 path.push_back(ln ? ln : L""); text.clear();
@@ -33,6 +35,7 @@ struct XmlWalker {
             if (nt == XmlNodeType_Text || nt == XmlNodeType_CDATA) { const wchar_t* v = nullptr; UINT n = 0; rd->GetValue(&v, &n); if (v) text.append(v, n); }
             else if (nt == XmlNodeType_EndElement) return 2;
         }
+        if (FAILED(hr)) throw std::runtime_error("XML je poskozene nebo neuplne"); // useknutý soubor se nesmí tiše načíst jen zčásti
         return 0;
     }
     void pop() { if (!path.empty()) path.pop_back(); }
@@ -51,15 +54,18 @@ inline Time parseXmlDate(const std::wstring& s) { // 2006-08-23T08:00:00
     if (swscanf(s.c_str(), L"%d-%d-%dT%d:%d:%d", &y, &mo, &d, &hh, &mm, &ss) < 3 || y < 1985 || mo < 1 || mo > 12 || d < 1 || d > 31) return 0;
     return makeTime(y, (unsigned)mo, (unsigned)d, (unsigned)hh, (unsigned)mm, (unsigned)ss);
 }
-inline int parseXmlDurationRaw(const std::wstring& s) { // PT8H0M0S -> desetiny minuty
-    if (s.empty()) return -1;
-    double h = 0, m = 0, sec = 0, cur = 0; bool num = false;
+inline double parseXmlDurationMin(const std::wstring& s) { // PT8H0M0S -> minuty (práce: double, velký program má přes 3,5 mil. hodin)
+    double h = 0, m = 0, sec = 0, cur = 0, frac = 0; bool num = false; // frac: váha další desetinné číslice (PT0H29M59.78S)
     for (const wchar_t* c = s.c_str(); *c; c++) {
-        if (iswdigit(*c)) { cur = cur * 10 + (*c - L'0'); num = true; }
-        else if (*c == L'.') { /* zlomky ignorujeme */ }
-        else { if (num) { if (*c == L'H') h = cur; else if (*c == L'M') m = cur; else if (*c == L'S') sec = cur; } cur = 0; num = false; }
+        if (iswdigit(*c)) { if (frac > 0) { cur += (*c - L'0') * frac; frac /= 10; } else cur = cur * 10 + (*c - L'0'); num = true; }
+        else if (*c == L'.') frac = 0.1;
+        else { if (num) { if (*c == L'H') h = cur; else if (*c == L'M') m = cur; else if (*c == L'S') sec = cur; } cur = 0; frac = 0; num = false; }
     }
-    return (int)std::lround((h * 60 + m + sec / 60.0) * 10);
+    return h * 60 + m + sec / 60.0;
+}
+inline int parseXmlDurationRaw(const std::wstring& s) { // -> desetiny minuty (doba trvání; strop místo přetečení int)
+    if (s.empty()) return -1;
+    return (int)std::lround(std::min(parseXmlDurationMin(s) * 10, (double)INT_MAX));
 }
 inline int xmlInt(const std::wstring& s) { return _wtoi(s.c_str()); }
 inline double xmlDbl(const std::wstring& s) { return _wtof(s.c_str()); }
@@ -74,6 +80,7 @@ inline Project readMspdi(const std::wstring& path) {
     int weekDayType = 0; bool weekDayWorking = false; int weekMinutes = 0; std::wstring weekText; int wtFrom = 0;
     int64_t exFrom = -1, exTo = -1; int exFieldId = 0; std::wstring exValue; int exDurFormat = 7;
     bool isBase = true; int calBase = -1; int calDefaultUid = -1; std::vector<CalException> recEx;
+    int exMonthDay = 0, exMonthPos = 0; // MonthDay i MonthPosition plní dayNumber – který platí, rozhodne až typ výjimky
 
     auto onStart = [&]() {
         size_t d = x.depth();
@@ -81,8 +88,8 @@ inline Project readMspdi(const std::wstring& path) {
         if (d == 3 && x.at({ L"Resources", L"Resource" })) { r = Resource(); r.uid = -1; return; }
         if (d == 3 && x.at({ L"Assignments", L"Assignment" })) { a = Assignment(); a.uid = -1; a.taskUid = -1; a.rscUid = -1; return; }
         if (d == 3 && x.at({ L"Calendars", L"Calendar" })) { cal = Calendar(); cal.uid = -1; isBase = true; calBase = -1; recEx.clear(); for (int i = 0; i < 7; i++) { cal.working[i] = false; cal.minutes[i] = 0; cal.hoursText[i].clear(); } return; }
-        if (x.at({ L"WeekDays", L"WeekDay" })) { weekDayType = 0; weekDayWorking = false; weekMinutes = 0; weekText.clear(); exFrom = exTo = -1; return; }
-        if (x.at({ L"Exceptions", L"Exception" })) { ex = CalException(); return; }
+        if (d == 5 && x.at({ L"WeekDays", L"WeekDay" })) { weekDayType = 0; weekDayWorking = false; weekMinutes = 0; weekText.clear(); exFrom = exTo = -1; return; }
+        if (x.at({ L"Exceptions", L"Exception" })) { ex = CalException(); exMonthDay = exMonthPos = 0; return; }
         if (x.at({ L"Task", L"PredecessorLink" })) { rel = Relation(); return; }
         if (x.at({ L"Task", L"Baseline" })) { baselineN = 0; bl = Baseline(); return; }
         if (x.at({ L"ExtendedAttribute" })) { exFieldId = 0; exValue.clear(); exDurFormat = 7; return; }
@@ -124,7 +131,9 @@ inline Project readMspdi(const std::wstring& path) {
         }
         if (x.at({ L"WeekDay", L"TimePeriod", L"FromDate" })) { Time tt = parseXmlDate(v); if (tt) exFrom = toUnixDays(tt); return; }
         if (x.at({ L"WeekDay", L"TimePeriod", L"ToDate" })) { Time tt = parseXmlDate(v); if (tt) exTo = toUnixDays(tt); return; }
-        if (x.at({ L"WeekDays", L"WeekDay" })) {
+        // jen Calendar/WeekDays/WeekDay (hloubka 5); WorkWeeks/WorkWeek/WeekDays/WeekDay jsou dočasné pracovní týdny
+        // (např. letní pracovní doba) a nesmí přepsat základní týden celého kalendáře
+        if (x.depth() == 5 && x.at({ L"WeekDays", L"WeekDay" })) {
             if (weekDayType >= 1 && weekDayType <= 7) { int i = weekDayType - 1; cal.working[i] = weekDayWorking; cal.minutes[i] = weekDayWorking ? (weekMinutes > 0 ? weekMinutes : 480) : 0; cal.hoursText[i] = weekText; }
             else if (weekDayType == 0 && exFrom >= 0) { CalException e; e.from = exFrom; e.to = exTo >= 0 ? exTo : exFrom; e.working = weekDayWorking; e.minutes = weekMinutes; cal.exceptions.push_back(e); }
             return;
@@ -136,12 +145,13 @@ inline Project readMspdi(const std::wstring& path) {
         if (x.at({ L"Exception", L"Type" })) { int ty = xmlInt(v); ex.rec = (ty >= 1 && ty <= 6) ? ty : 0; return; }
         if (x.at({ L"Exception", L"Period" })) { ex.freq = xmlInt(v); return; }
         if (x.at({ L"Exception", L"DaysOfWeek" })) { ex.weekBits = xmlInt(v); return; }
-        if (x.at({ L"Exception", L"MonthDay" })) { ex.dayNumber = xmlInt(v); return; }
+        if (x.at({ L"Exception", L"MonthDay" })) { exMonthDay = xmlInt(v); return; }
         if (x.at({ L"Exception", L"Month" })) { ex.month = xmlInt(v) + 1; return; }
         if (x.at({ L"Exception", L"MonthItem" })) { ex.dayOfWeek = xmlInt(v) - 2; return; }
-        if (x.at({ L"Exception", L"MonthPosition" })) { ex.dayNumber = xmlInt(v) + 1; return; }
-        if (x.at({ L"Exception", L"WorkingTimes", L"WorkingTime", L"ToTime" })) { int to = xmlClock(v); if (to > wtFrom) ex.minutes += to - wtFrom; return; }
-        if (x.at({ L"Exceptions", L"Exception" })) { if (ex.rec == 1) ex.rec = ex.freq > 1 ? 7 : 0; if (ex.to < ex.from) ex.to = ex.from; if (ex.from > 0) recEx.push_back(ex); return; }
+        if (x.at({ L"Exception", L"MonthPosition" })) { exMonthPos = xmlInt(v) + 1; return; }
+        if (x.at({ L"Exception", L"WorkingTimes", L"WorkingTime", L"ToTime" })) { int to = xmlClock(v); if (to == 0) to = 1440; if (to > wtFrom) ex.minutes += to - wtFrom; return; }
+        if (x.at({ L"Exceptions", L"Exception" })) { ex.dayNumber = (ex.rec == 3 || ex.rec == 5) ? exMonthPos : exMonthDay; // podle pozice (3., 5.) / podle dne (2., 4.)
+            if (ex.rec == 1) ex.rec = ex.freq > 1 ? 7 : 0; if (ex.to < ex.from) ex.to = ex.from; if (ex.from > 0) recEx.push_back(ex); return; }
         if (x.depth() == 3 && x.at({ L"Calendars", L"Calendar" })) {
             // Project píše opakované výjimky i rozvinuté do WeekDay DayType=0 -> ty jsou přesné, z <Exceptions> bereme jen názvy.
             // ponytail: bez rozvinutých dnů se pravidla <Exceptions> mapují jen přibližně (denní/týdenní/měsíční)
@@ -156,7 +166,7 @@ inline Project readMspdi(const std::wstring& path) {
             if (n == L"UID") { t.uid = xmlInt(v); return; }
             if (n == L"ID") { t.id = xmlInt(v); return; }
             if (n == L"Name") { t.name = v; t.nameSet = true; return; }
-            if (n == L"IsNull") { if (xmlBool(v)) t.nameSet = false; return; }
+            if (n == L"IsNull") { t.isNull = xmlBool(v); return; } // prázdný řádek jen podle IsNull (MPXJ) – úkol bez názvu s termíny je skutečný úkol
             if (n == L"Type") { t.taskType = xmlInt(v); return; }
             if (n == L"Priority") { t.priority = xmlInt(v); return; }
             if (n == L"WBS") { t.wbs = v; return; }
@@ -179,9 +189,9 @@ inline Project readMspdi(const std::wstring& path) {
             if (n == L"DurationFormat") { t.duration.units = unitsOf(xmlInt(v), p.defaultUnits); t.actualDuration.units = t.remainingDuration.units = t.duration.units; return; }
             if (n == L"ActualDuration") { t.actualDuration.raw = parseXmlDurationRaw(v); return; }
             if (n == L"RemainingDuration") { t.remainingDuration.raw = parseXmlDurationRaw(v); return; }
-            if (n == L"Work") { t.workMinutes = parseXmlDurationRaw(v) / 10.0; return; }
-            if (n == L"ActualWork") { t.actualWorkMinutes = parseXmlDurationRaw(v) / 10.0; return; }
-            if (n == L"RemainingWork") { t.remainingWorkMinutes = parseXmlDurationRaw(v) / 10.0; return; }
+            if (n == L"Work") { t.workMinutes = parseXmlDurationMin(v); return; }
+            if (n == L"ActualWork") { t.actualWorkMinutes = parseXmlDurationMin(v); return; }
+            if (n == L"RemainingWork") { t.remainingWorkMinutes = parseXmlDurationMin(v); return; }
             if (n == L"Cost") { t.cost = xmlCur(v); return; }
             if (n == L"ActualCost") { t.actualCost = xmlCur(v); return; }
             if (n == L"RemainingCost") { t.remainingCost = xmlCur(v); return; }
@@ -231,7 +241,7 @@ inline Project readMspdi(const std::wstring& path) {
         if (x.at({ L"Baseline", L"Finish" })) { bl.finish = parseXmlDate(v); return; }
         if (x.at({ L"Baseline", L"Duration" })) { bl.duration.raw = parseXmlDurationRaw(v); return; }
         if (x.at({ L"Baseline", L"DurationFormat" })) { bl.duration.units = unitsOf(xmlInt(v), p.defaultUnits); return; }
-        if (x.at({ L"Baseline", L"Work" })) { bl.workHours = parseXmlDurationRaw(v) / 600.0; return; }
+        if (x.at({ L"Baseline", L"Work" })) { bl.workHours = parseXmlDurationMin(v) / 60.0; return; }
         if (x.at({ L"Baseline", L"Cost" })) { bl.cost = xmlCur(v); return; }
         if (x.at({ L"ExtendedAttribute", L"FieldID" })) { exFieldId = xmlInt(v); return; }
         if (x.at({ L"ExtendedAttribute", L"Value" })) { exValue = v; return; }
@@ -251,7 +261,7 @@ inline Project readMspdi(const std::wstring& path) {
         if (n == L"StandardRate") { r.stdRate = xmlDbl(v); return; }
         if (n == L"OvertimeRate") { r.ovtRate = xmlDbl(v); return; }
         if (n == L"CostPerUse") { r.costPerUse = xmlCur(v); return; }
-        if (n == L"Work") { r.workHours = parseXmlDurationRaw(v) / 600.0; return; }
+        if (n == L"Work") { r.workHours = parseXmlDurationMin(v) / 60.0; return; }
         if (n == L"Cost") { r.cost = xmlCur(v); return; }
     };
     auto assignment = [&](const std::wstring& n, const std::wstring& v) {
@@ -260,8 +270,8 @@ inline Project readMspdi(const std::wstring& path) {
         if (n == L"TaskUID") { a.taskUid = xmlInt(v); return; }
         if (n == L"ResourceUID") { a.rscUid = xmlInt(v); return; }
         if (n == L"Units") { a.units = xmlDbl(v); return; }
-        if (n == L"Work") { a.workHours = parseXmlDurationRaw(v) / 600.0; return; }
-        if (n == L"ActualWork") { a.actualWorkHours = parseXmlDurationRaw(v) / 600.0; return; }
+        if (n == L"Work") { a.workHours = parseXmlDurationMin(v) / 60.0; return; }
+        if (n == L"ActualWork") { a.actualWorkHours = parseXmlDurationMin(v) / 60.0; return; }
         if (n == L"Cost") { a.cost = xmlCur(v); return; }
         if (n == L"Start") { a.start = parseXmlDate(v); return; }
         if (n == L"Finish") { a.finish = parseXmlDate(v); return; }
@@ -271,7 +281,7 @@ inline Project readMspdi(const std::wstring& path) {
         size_t d = x.depth();
         if (d == 2) { project(n, v); return; }
         if (d >= 2 && x.path[1] == L"Tasks") {
-            if (d == 3) { if (t.uid >= 0) { if (!t.nameSet) t.isNull = true; p.tasks.push_back(t); } t.uid = -1; return; }
+            if (d == 3) { if (t.uid >= 0) p.tasks.push_back(t); t.uid = -1; return; }
             task(n, v); return;
         }
         if (d >= 2 && x.path[1] == L"Resources") {
